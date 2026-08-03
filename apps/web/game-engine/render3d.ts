@@ -12,6 +12,12 @@ import { NONE, type GameEngine } from "./engine";
 const GROUND_TEX = 1024; // 바닥 텍스처 해상도
 const TERRITORY_H = 0.75; // 영토 블록 높이
 const TRAIL_H = 0.4;
+// 카메라 틸트 방향 (정규화됨) — 줌 거리와 무관하게 각도 유지
+const CAM_OFFSET = new THREE.Vector3(0, 0.78, 0.63).normalize();
+const ZOOM_MIN = 16;
+const ZOOM_MAX = 130;
+const ZOOM_DEFAULT = 36;
+const OVERVIEW_DIST = 125; // 사망/관전 시 전장 조망 거리
 
 export class Renderer3D {
   private renderer: THREE.WebGLRenderer;
@@ -25,7 +31,8 @@ export class Renderer3D {
   private bgSource: HTMLCanvasElement; // 절차 배경 (이미지 로드 전 폴백)
   private bgImage: HTMLImageElement | null = null;
 
-  private territory: THREE.InstancedMesh;
+  private territory: THREE.InstancedMesh; // 영토 경계 벽 (불투명 입체)
+  private territoryFill: THREE.InstancedMesh; // 영토 내부 (반투명 타일 — 리빌된 배경이 비침)
   private trails: THREE.InstancedMesh;
   private playerGroups: THREE.Group[] = [];
   private playerBodies: THREE.Mesh[] = [];
@@ -34,6 +41,7 @@ export class Renderer3D {
 
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3();
+  private zoomDist = ZOOM_DEFAULT;
   private disposed = false;
   private dummy = new THREE.Object3D();
   private colorTmp = new THREE.Color();
@@ -60,12 +68,12 @@ export class Renderer3D {
     const isSpace = engine.stage.theme === "space";
     const bgColor = new THREE.Color(isSpace ? 0x05070f : 0x0a1424);
     this.scene.background = bgColor;
-    this.scene.fog = new THREE.Fog(bgColor, 140, 260);
+    this.scene.fog = new THREE.Fog(bgColor, 150, 420);
 
-    // ── 카메라: 틸트 뷰 + 플레이어 방향 패럴럭스 ──
-    this.camera = new THREE.PerspectiveCamera(45, initW / initH, 1, 500);
+    // ── 카메라: 플레이어 추적 + 휠 줌 (광활한 월드 속의 나) ──
+    this.camera = new THREE.PerspectiveCamera(50, initW / initH, 0.5, 600);
     this.camTarget.set(N / 2, 0, N / 2);
-    this.camPos.set(N / 2, 82, N / 2 + 86);
+    this.camPos.copy(this.camTarget).addScaledVector(CAM_OFFSET, this.zoomDist);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camTarget);
 
@@ -136,15 +144,29 @@ export class Renderer3D {
       this.scene.add(rim);
     }
 
-    // ── 영토 블록 (InstancedMesh — 셀 전체를 드로우콜 1번에) ──
-    const cellGeo = new THREE.BoxGeometry(0.96, TERRITORY_H, 0.96);
-    const cellMat = new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.08 });
-    this.territory = new THREE.InstancedMesh(cellGeo, cellMat, N * N);
+    // ── 영토 (InstancedMesh — 셀 전체를 드로우콜 1~2번에) ──
+    // 경계 셀: 불투명 입체 벽 / 내부 셀: 반투명 타일 → 점령한 만큼 배경이미지가 훤히 드러남
+    const wallGeo = new THREE.BoxGeometry(0.98, TERRITORY_H, 0.98);
+    const wallMat = new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.08 });
+    this.territory = new THREE.InstancedMesh(wallGeo, wallMat, N * N);
     this.territory.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.territory.castShadow = true;
     this.territory.receiveShadow = true;
     this.territory.count = 0;
     this.scene.add(this.territory);
+
+    const fillGeo = new THREE.BoxGeometry(1.0, 0.1, 1.0);
+    const fillMat = new THREE.MeshStandardMaterial({
+      roughness: 0.7,
+      transparent: true,
+      opacity: 0.34,
+      depthWrite: false,
+    });
+    this.territoryFill = new THREE.InstancedMesh(fillGeo, fillMat, N * N);
+    this.territoryFill.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.territoryFill.receiveShadow = true;
+    this.territoryFill.count = 0;
+    this.scene.add(this.territoryFill);
 
     // ── 궤적 (언릿 + 블룸 글로우) ──
     const trailGeo = new THREE.BoxGeometry(0.72, TRAIL_H, 0.72);
@@ -159,7 +181,7 @@ export class Renderer3D {
     for (const p of engine.players) {
       const g = new THREE.Group();
       const body = new THREE.Mesh(
-        new THREE.SphereGeometry(1.15, 32, 24),
+        new THREE.SphereGeometry(p.kind === "human" ? 1.35 : 1.15, 32, 24),
         new THREE.MeshPhysicalMaterial({
           color: p.color,
           roughness: 0.22,
@@ -186,7 +208,8 @@ export class Renderer3D {
       g.add(halo);
 
       const plate = makeNameSprite(p.name, p.kind === "human");
-      plate.position.y = 3.1;
+      plate.position.y = 3.3;
+      plate.scale.set(7, 1.75, 1);
       g.add(plate);
 
       if (p.kind === "human") {
@@ -249,6 +272,11 @@ export class Renderer3D {
     this.composer.addPass(new OutputPass());
   }
 
+  // 마우스 휠 줌 (배율 방식 — 가까울수록 미세하게, 멀수록 크게)
+  zoomBy(deltaY: number) {
+    this.zoomDist = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, this.zoomDist * (1 + deltaY * 0.0011)));
+  }
+
   // 뷰포트 크기 변경 대응 (풀스크린 모드)
   resize(width: number, height: number) {
     if (this.disposed || width === 0 || height === 0) return;
@@ -305,23 +333,21 @@ export class Renderer3D {
       this.zoneRings[i].rotation.z = nowMs / 2400;
     }
 
-    // 6. 카메라: 전장 조망 + 플레이어 쪽으로 완만한 패럴럭스
+    // 6. 카메라: 플레이어 추적 (진행 방향 룩어헤드) / 사망 시 전장 조망
     const h = engine.human;
     const px = h.cx + h.dir.x * h.progress + 0.5;
     const pz = h.cy + h.dir.y * h.progress + 0.5;
-    const sway = Math.sin(nowMs / 5200) * 2.2;
-    this.camTarget.lerp(
-      new THREE.Vector3(N / 2 + (px - N / 2) * 0.3, 0, N / 2 + (pz - N / 2) * 0.3),
-      0.045,
-    );
-    this.camPos.lerp(
-      new THREE.Vector3(
-        N / 2 + (px - N / 2) * 0.22 + sway,
-        82,
-        N / 2 + 86 + (pz - N / 2) * 0.18,
-      ),
-      0.045,
-    );
+    const dist = h.alive ? this.zoomDist : OVERVIEW_DIST;
+    const lookAhead = Math.min(6, dist * 0.12);
+    const desiredTarget = h.alive
+      ? new THREE.Vector3(px + h.dir.x * lookAhead, 0, pz + h.dir.y * lookAhead)
+      : new THREE.Vector3(N / 2, 0, N / 2);
+    this.camTarget.lerp(desiredTarget, 0.07);
+    const desiredPos = desiredTarget
+      .clone()
+      .addScaledVector(CAM_OFFSET, dist)
+      .add(new THREE.Vector3(Math.sin(nowMs / 5200) * dist * 0.015, 0, 0));
+    this.camPos.lerp(desiredPos, 0.07);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camTarget);
 
@@ -355,19 +381,30 @@ export class Renderer3D {
 
   private resetGroundComposite() {
     const ctx = this.groundCtx;
-    ctx.fillStyle = this.engine.stage.theme === "space" ? "#070a18" : "#0b1526";
-    ctx.fillRect(0, 0, GROUND_TEX, GROUND_TEX);
-    // 미세 노이즈 질감
-    for (let i = 0; i < 2500; i++) {
-      const a = Math.random() * 0.05;
-      ctx.fillStyle = `rgba(120,150,220,${a})`;
-      ctx.fillRect(Math.random() * GROUND_TEX, Math.random() * GROUND_TEX, 3, 3);
+    // 광활함 연출: 미리빌 지역도 배경이 희미하게 보인다 (리빌 = 원색으로 밝아짐)
+    if (this.bgImage) {
+      ctx.drawImage(this.bgImage, 0, 0, GROUND_TEX, GROUND_TEX);
+    } else {
+      ctx.drawImage(this.bgSource, 0, 0, GROUND_TEX, GROUND_TEX);
     }
-    // 이미 리빌된 셀 복원
+    ctx.fillStyle = this.engine.stage.theme === "space" ? "rgba(4,6,16,0.88)" : "rgba(4,9,20,0.88)";
+    ctx.fillRect(0, 0, GROUND_TEX, GROUND_TEX);
+    // 희미한 그리드 — 공간 스케일 감각 (리빌된 셀은 덮어써서 그리드가 사라짐)
     const N = this.engine.N;
-    const scale = GROUND_TEX / N;
+    const cell = GROUND_TEX / N;
+    ctx.strokeStyle = "rgba(140,170,230,0.05)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let k = 0; k <= N; k += 2) {
+      ctx.moveTo(k * cell, 0);
+      ctx.lineTo(k * cell, GROUND_TEX);
+      ctx.moveTo(0, k * cell);
+      ctx.lineTo(GROUND_TEX, k * cell);
+    }
+    ctx.stroke();
+    // 이미 리빌된 셀 복원
     for (let i = 0; i < N * N; i++) {
-      if (this.engine.revealed[i]) this.drawGroundCell(i % N, (i / N) | 0, scale);
+      if (this.engine.revealed[i]) this.drawGroundCell(i % N, (i / N) | 0, cell);
     }
   }
 
@@ -375,23 +412,45 @@ export class Renderer3D {
     const engine = this.engine;
     const N = engine.N;
     const owner = engine.owner;
-    let count = 0;
+    let walls = 0;
+    let fills = 0;
     for (let i = 0; i < N * N; i++) {
       const id = owner[i];
       if (id === NONE) continue;
       const x = i % N;
       const y = (i / N) | 0;
-      this.dummy.position.set(x + 0.5, TERRITORY_H / 2, y + 0.5);
+      // 4방 이웃 중 다른 소유자가 있으면 경계 셀 → 입체 벽
+      const isBorder =
+        x === 0 ||
+        x === N - 1 ||
+        y === 0 ||
+        y === N - 1 ||
+        owner[i - 1] !== id ||
+        owner[i + 1] !== id ||
+        owner[i - N] !== id ||
+        owner[i + N] !== id;
       this.dummy.rotation.set(0, 0, 0);
       this.dummy.scale.set(1, 1, 1);
-      this.dummy.updateMatrix();
-      this.territory.setMatrixAt(count, this.dummy.matrix);
-      this.territory.setColorAt(count, this.playerColors[id]);
-      count++;
+      if (isBorder) {
+        this.dummy.position.set(x + 0.5, TERRITORY_H / 2, y + 0.5);
+        this.dummy.updateMatrix();
+        this.territory.setMatrixAt(walls, this.dummy.matrix);
+        this.territory.setColorAt(walls, this.playerColors[id]);
+        walls++;
+      } else {
+        this.dummy.position.set(x + 0.5, 0.06, y + 0.5);
+        this.dummy.updateMatrix();
+        this.territoryFill.setMatrixAt(fills, this.dummy.matrix);
+        this.territoryFill.setColorAt(fills, this.playerColors[id]);
+        fills++;
+      }
     }
-    this.territory.count = count;
+    this.territory.count = walls;
     this.territory.instanceMatrix.needsUpdate = true;
     if (this.territory.instanceColor) this.territory.instanceColor.needsUpdate = true;
+    this.territoryFill.count = fills;
+    this.territoryFill.instanceMatrix.needsUpdate = true;
+    if (this.territoryFill.instanceColor) this.territoryFill.instanceColor.needsUpdate = true;
   }
 
   private rebuildTrails() {

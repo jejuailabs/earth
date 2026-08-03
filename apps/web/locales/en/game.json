@@ -17,6 +17,7 @@
   "controlsClassic": "Arrows / WASD to steer · auto-forward (classic)",
   "controlsManual": "Arrows / WASD to move · Space to stop/go (manual)",
   "controlsTrail": "You die if your trail is cut outside your territory",
+  "controlsZoom": "Wheel to zoom",
   "modeLabelClassic": "classic mode",
   "modeLabelManual": "manual mode"
 }

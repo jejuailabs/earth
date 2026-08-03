@@ -25,6 +25,77 @@ interface Hud {
   gains: MatchGains | null;
 }
 
+// 미니맵: 영토(플레이어 색) + 리빌 흔적 + 존 + 플레이어 위치(나 = 흰 링 펄스)
+function drawMinimap(
+  engine: GameEngine,
+  canvas: HTMLCanvasElement | null,
+  cellCanvas: HTMLCanvasElement,
+  cellCtx: CanvasRenderingContext2D,
+  data: ImageData,
+  playerRGB: readonly (readonly [number, number, number])[],
+  nowMs: number,
+) {
+  if (!canvas) return;
+  const N = engine.N;
+  const d = data.data;
+  for (let i = 0; i < N * N; i++) {
+    const o = i * 4;
+    const id = engine.owner[i];
+    if (id >= 0) {
+      const [r, g, b] = playerRGB[id];
+      d[o] = r;
+      d[o + 1] = g;
+      d[o + 2] = b;
+      d[o + 3] = 235;
+    } else if (engine.revealed[i]) {
+      d[o] = 150;
+      d[o + 1] = 175;
+      d[o + 2] = 230;
+      d[o + 3] = 34;
+    } else {
+      d[o + 3] = 0;
+    }
+  }
+  cellCtx.putImageData(data, 0, 0);
+
+  const ctx = canvas.getContext("2d")!;
+  const S = canvas.width;
+  const px = S / N;
+  ctx.clearRect(0, 0, S, S);
+  ctx.fillStyle = "rgba(8,12,24,0.85)";
+  ctx.fillRect(0, 0, S, S);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(cellCanvas, 0, 0, S, S);
+  ctx.imageSmoothingEnabled = true;
+
+  // 가중치 존
+  for (const z of engine.stage.valueZones) {
+    ctx.strokeStyle = "rgba(255,205,60,0.7)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc((z.x + 0.5) * px, (z.y + 0.5) * px, z.radius * px, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // 플레이어 점
+  for (const p of engine.players) {
+    if (!p.alive) continue;
+    const x = (p.cx + 0.5) * px;
+    const y = (p.cy + 0.5) * px;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(x, y, p.kind === "human" ? 4 : 3, 0, Math.PI * 2);
+    ctx.fill();
+    if (p.kind === "human") {
+      const pulse = 5.5 + Math.sin(nowMs / 300) * 1.5;
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, pulse, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+
 const KEY_DIRS: Record<string, Vec> = {
   ArrowUp: { x: 0, y: -1 },
   ArrowDown: { x: 0, y: 1 },
@@ -49,6 +120,7 @@ export default function GameCanvas({
 }) {
   const { t } = useTranslation("game");
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const minimapRef = useRef<HTMLCanvasElement>(null);
   const { user, userDoc } = useAuth();
   // 게임 루프 클로저에서 최신 로그인 상태를 참조하기 위한 ref
   const authRef = useRef({ user, userDoc });
@@ -74,17 +146,34 @@ export default function GameCanvas({
     // 3D 렌더러 우선, WebGL 불가 환경에서는 2D 캔버스 폴백
     let renderer: Renderer3D | Renderer;
     let onResize: (() => void) | null = null;
+    let onWheel: ((e: WheelEvent) => void) | null = null;
     try {
       renderer = new Renderer3D(canvas, engine, bgUrl);
       const r3d = renderer;
       onResize = () => r3d.resize(canvas.clientWidth, canvas.clientHeight);
       onResize();
       window.addEventListener("resize", onResize);
+      onWheel = (e) => {
+        e.preventDefault();
+        r3d.zoomBy(e.deltaY);
+      };
+      window.addEventListener("wheel", onWheel, { passive: false });
     } catch (e) {
       console.warn("WebGL 렌더러 초기화 실패 — 2D 폴백:", e);
       canvas.style.objectFit = "contain"; // 2D는 정사각형 유지
       renderer = new Renderer(canvas, engine, bgUrl);
     }
+
+    // 미니맵 준비 (1px = 1셀 오프스크린 → 확대)
+    const miniCell = document.createElement("canvas");
+    miniCell.width = engine.N;
+    miniCell.height = engine.N;
+    const miniCellCtx = miniCell.getContext("2d")!;
+    const miniData = miniCellCtx.createImageData(engine.N, engine.N);
+    const playerRGB = engine.players.map((p) => {
+      const n = parseInt(p.color.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;
+    });
 
     const stepMs = 1000 / C.tickRate;
     let last = performance.now();
@@ -106,6 +195,7 @@ export default function GameCanvas({
       hudAcc += dt;
       if (hudAcc >= 120 || engine.result) {
         hudAcc = 0;
+        drawMinimap(engine, minimapRef.current, miniCell, miniCellCtx, miniData, playerRGB, now);
         const h = engine.human;
         setHud((prev) => ({
           ...prev,
@@ -150,6 +240,7 @@ export default function GameCanvas({
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
       if (onResize) window.removeEventListener("resize", onResize);
+      if (onWheel) window.removeEventListener("wheel", onWheel);
       if (renderer instanceof Renderer3D) renderer.dispose(); // WebGL 컨텍스트 누수 방지
     };
   }, [stage, mode, bgUrl]);
@@ -209,9 +300,15 @@ export default function GameCanvas({
         </div>
       </div>
 
+      {/* 우하단: 미니맵 */}
+      <div className="pointer-events-none absolute bottom-4 right-4 rounded-2xl border border-white/15 bg-black/55 p-2 shadow-xl backdrop-blur-md">
+        <canvas ref={minimapRef} width={200} height={200} className="block h-44 w-44 rounded-xl" />
+      </div>
+
       {/* 하단: 조작 안내 */}
       <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/40 px-5 py-1.5 text-xs text-zinc-300 backdrop-blur-md">
-        {mode === "manual" ? t("controlsManual") : t("controlsClassic")} · {t("controlsTrail")}
+        {mode === "manual" ? t("controlsManual") : t("controlsClassic")} · {t("controlsZoom")} ·{" "}
+        {t("controlsTrail")}
       </p>
 
       {/* 부활 대기 오버레이 */}

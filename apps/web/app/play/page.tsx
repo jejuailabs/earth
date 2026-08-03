@@ -22,14 +22,17 @@ function PlayInner() {
   useEffect(() => {
     (async () => {
       const d = await fetchStageDef(stageId);
-      // 승인된 배경이미지가 연결돼 있으면 이미지 + 이미지에 태깅된 가중치존 사용 (docs/04 §5)
+      // 기본: 번들된 샘플 이미지. 승인된 배경이미지가 연결돼 있으면 그것으로 교체
+      // (이미지에 태깅된 가중치존이 있으면 스테이지 존 대체 — docs/04 §5)
+      let url = `/samples/${d.theme}.png`;
       if (d.backgroundImageId) {
         const img = await fetchApprovedImage(d.backgroundImageId);
         if (img) {
-          setBgUrl(img.storageUrl);
+          url = img.storageUrl;
           if (img.valueZones.length > 0) d.valueZones = img.valueZones;
         }
       }
+      setBgUrl(url);
       setDef(d);
     })();
   }, [stageId]);
