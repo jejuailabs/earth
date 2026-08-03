@@ -46,6 +46,7 @@ function stageDocData(body: StageDef) {
       type: ["landmark", "gem", "event"].includes(z.type) ? z.type : "landmark",
       multiplier: Number(z.multiplier ?? 2),
     })),
+    backgroundImageId: typeof body.backgroundImageId === "string" ? body.backgroundImageId : "",
     isActive: body.isActive !== false,
   };
 }

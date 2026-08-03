@@ -53,10 +53,27 @@
       "timeLimitSec": "Time limit (s)",
       "theme": "Theme",
       "valueZones": "Value zones (JSON)",
+      "backgroundImage": "Background image (approved only)",
+      "noImage": "(use procedural theme background)",
       "isActive": "Active"
     }
   },
-  "images": { "wip": "Image review ships with the GPT Image pipeline (step 9)" },
+  "images": {
+    "generate": "Generate AI image",
+    "generating": "Generating… (may take 1–2 min)",
+    "theme": "Theme",
+    "customPrompt": "Prompt (empty = theme template)",
+    "approve": "Approve",
+    "reject": "Reject",
+    "repending": "Re-review",
+    "zonesHint": "Click the image to add a value zone (100×100 grid coords)",
+    "saveZones": "Save zones",
+    "zoneRemove": "Remove",
+    "empty": "No images yet. Start by generating one.",
+    "statusPending": "Pending",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected"
+  },
   "shop": { "wip": "Shop item management ships with the shop system (step 10)" },
   "logs": { "empty": "No actions logged", "action": "Action", "target": "Target", "admin": "Admin", "time": "Time" },
   "error": "Error: {{message}}"

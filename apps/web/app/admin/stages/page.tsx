@@ -32,11 +32,17 @@ export default function AdminStages() {
   const [zonesJson, setZonesJson] = useState("[]");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [approvedImages, setApprovedImages] = useState<{ imageId: string; theme: string }[]>([]);
 
   const load = useCallback(() => {
     adminFetch<{ stages: StageDef[] }>("/api/admin/stages")
       .then((r) => setStages(r.stages))
       .catch((e) => setError(e.message));
+    adminFetch<{ images: { imageId: string; theme: string }[] }>(
+      "/api/admin/images?status=approved",
+    )
+      .then((r) => setApprovedImages(r.images))
+      .catch(() => setApprovedImages([]));
   }, []);
   useEffect(load, [load]);
 
@@ -271,6 +277,23 @@ export default function AdminStages() {
               onChange={(e) => setEditing({ ...editing, timeLimitSec: Number(e.target.value) })}
               className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5"
             />
+          </label>
+          <label className="text-sm">
+            <span className="text-zinc-400">{f.backgroundImage}</span>
+            <select
+              value={editing.backgroundImageId ?? ""}
+              onChange={(e) =>
+                setEditing({ ...editing, backgroundImageId: e.target.value || undefined })
+              }
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5"
+            >
+              <option value="">{f.noImage}</option>
+              {approvedImages.map((im) => (
+                <option key={im.imageId} value={im.imageId}>
+                  [{im.theme}] {im.imageId.slice(0, 8)}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input

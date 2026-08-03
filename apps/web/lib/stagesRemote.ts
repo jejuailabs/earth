@@ -21,6 +21,7 @@ function toStageDef(raw: Record<string, unknown>): StageDef {
     timeLimitSec: Number(d.timeLimitSec ?? 180),
     theme: d.theme === "space" ? "space" : "earth",
     valueZones: Array.isArray(d.valueZones) ? d.valueZones : [],
+    backgroundImageId: typeof d.backgroundImageId === "string" ? d.backgroundImageId : undefined,
     isActive: d.isActive !== false,
   };
 }

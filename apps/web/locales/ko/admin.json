@@ -53,10 +53,27 @@
       "timeLimitSec": "제한시간(초)",
       "theme": "테마",
       "valueZones": "가중치 존 (JSON)",
+      "backgroundImage": "배경이미지 (승인된 것만)",
+      "noImage": "(테마 절차 생성 배경 사용)",
       "isActive": "활성화"
     }
   },
-  "images": { "wip": "이미지 검수는 GPT Image 파이프라인(9단계) 연동 시 구현됩니다" },
+  "images": {
+    "generate": "AI 이미지 생성",
+    "generating": "생성 중… (최대 1~2분 소요)",
+    "theme": "테마",
+    "customPrompt": "프롬프트 (비우면 테마 템플릿 사용)",
+    "approve": "승인",
+    "reject": "반려",
+    "repending": "재검수",
+    "zonesHint": "이미지를 클릭하면 가중치 존이 추가됩니다 (100×100 그리드 좌표)",
+    "saveZones": "존 저장",
+    "zoneRemove": "삭제",
+    "empty": "이미지가 없습니다. AI 생성으로 시작하세요.",
+    "statusPending": "검수 대기",
+    "statusApproved": "승인됨",
+    "statusRejected": "반려됨"
+  },
   "shop": { "wip": "상점 아이템 관리는 상점 시스템(10단계) 구현 시 함께 추가됩니다" },
   "logs": { "empty": "기록된 액션이 없습니다", "action": "액션", "target": "대상", "admin": "관리자", "time": "시각" },
   "error": "오류: {{message}}"

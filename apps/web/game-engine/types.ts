@@ -42,6 +42,7 @@ export interface StageDef {
   timeLimitSec: number;
   theme: "earth" | "space";
   valueZones: ValueZone[];
+  backgroundImageId?: string; // backgroundImages 컬렉션 참조 (docs/03 §2)
   isActive: boolean;
 }
 
@@ -58,6 +59,7 @@ export interface StageConfig {
   timeLimitSec: number; // areaPercent 스테이지의 제한시간 (surviveTime은 value가 곧 시간)
   theme: "earth" | "space";
   valueZones: ValueZone[];
+  backgroundImageId?: string;
 }
 
 export interface GameResult {

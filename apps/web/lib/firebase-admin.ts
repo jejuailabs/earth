@@ -3,6 +3,7 @@ import "server-only";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 const adminApp =
   getApps().length > 0
@@ -18,3 +19,6 @@ const adminApp =
 
 export const adminAuth = getAuth(adminApp);
 export const adminFirestore = getFirestore(adminApp);
+export const adminBucket = getStorage(adminApp).bucket(
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+);

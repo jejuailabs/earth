@@ -122,6 +122,7 @@ export function localizeStage(def: StageDef, locale: string): StageConfig {
     timeLimitSec: def.timeLimitSec,
     theme: def.theme,
     valueZones: def.valueZones,
+    backgroundImageId: def.backgroundImageId,
   };
 }
 

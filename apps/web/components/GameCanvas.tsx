@@ -38,10 +38,12 @@ const KEY_DIRS: Record<string, Vec> = {
 export default function GameCanvas({
   stage,
   mode,
+  bgUrl,
   onRestart,
 }: {
   stage: StageConfig;
   mode: ControlMode;
+  bgUrl?: string;
   onRestart: () => void;
 }) {
   const { t } = useTranslation("game");
@@ -69,7 +71,7 @@ export default function GameCanvas({
     if (!canvas) return;
 
     const engine = new GameEngine(stage, mode);
-    const renderer = new Renderer(canvas, engine);
+    const renderer = new Renderer(canvas, engine, bgUrl);
     const stepMs = 1000 / C.tickRate;
     let last = performance.now();
     let acc = 0;
@@ -134,7 +136,7 @@ export default function GameCanvas({
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
     };
-  }, [stage, mode]);
+  }, [stage, mode, bgUrl]);
 
   const cond = stage.clearCondition;
   const goal =
@@ -142,49 +144,71 @@ export default function GameCanvas({
       ? t("goalAreaShort", { value: cond.value })
       : t("goalSurviveShort", { value: cond.value });
 
+  // 목표 대비 진행률 (areaPercent 스테이지)
+  const progress =
+    cond.type === "areaPercent" ? Math.min(100, (hud.areaPct / cond.value) * 100) : null;
+
   return (
-    <div className="flex flex-col items-center gap-3 w-full">
+    <div className="flex w-full flex-col items-center gap-4">
       {/* 상단 HUD */}
-      <div className="flex flex-wrap items-center justify-between gap-3 w-full max-w-[640px] rounded-lg bg-zinc-800/80 px-4 py-2 text-sm text-zinc-100">
-        <span className="font-semibold">{stage.name}</span>
-        <span>⏱ {hud.timeLeftSec}s</span>
-        <span>
-          🗺 {hud.areaPct.toFixed(1)}%{" "}
-          <span className="text-zinc-400">/ {t("goalPrefix", { goal })}</span>
-        </span>
-        <span>⭐ {hud.score}</span>
-        <span>⚔ {hud.kills}</span>
+      <div className="w-full max-w-[1024px] rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900/95 via-zinc-800/90 to-zinc-900/95 px-6 py-3 shadow-lg shadow-black/40 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-zinc-100">
+          <span className="text-lg font-bold tracking-tight">{stage.name}</span>
+          <span className="font-mono text-xl tabular-nums">
+            ⏱ {Math.floor(hud.timeLeftSec / 60)}:{String(hud.timeLeftSec % 60).padStart(2, "0")}
+          </span>
+          <span className="text-base">
+            🗺 <b className="tabular-nums">{hud.areaPct.toFixed(1)}%</b>{" "}
+            <span className="text-sm text-zinc-400">/ {t("goalPrefix", { goal })}</span>
+          </span>
+          <span className="text-base">
+            ⭐ <b className="tabular-nums">{hud.score}</b>
+          </span>
+          <span className="text-base">
+            ⚔ <b className="tabular-nums">{hud.kills}</b>
+          </span>
+        </div>
+        {progress !== null && (
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-950/80">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 transition-[width] duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
       </div>
 
       {/* 게임 캔버스 */}
-      <div className="relative w-full max-w-[640px]">
+      <div className="relative w-full max-w-[1024px]">
         <canvas
           ref={canvasRef}
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 [image-rendering:pixelated]"
+          className="w-full rounded-2xl border border-zinc-700/70 bg-zinc-950 shadow-2xl shadow-black/60"
         />
 
         {/* 부활 대기 오버레이 */}
         {hud.respawnInSec !== null && !hud.result && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50">
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/55 backdrop-blur-[2px]">
             <div className="text-center text-white">
-              <p className="text-2xl font-bold">{t("eliminated")}</p>
-              <p className="mt-1 text-lg">{t("respawnIn", { sec: hud.respawnInSec })}</p>
-              <p className="mt-1 text-sm text-zinc-300">{t("respawnPenalty")}</p>
+              <p className="text-4xl font-black drop-shadow-lg">{t("eliminated")}</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">
+                {t("respawnIn", { sec: hud.respawnInSec })}
+              </p>
+              <p className="mt-2 text-sm text-zinc-300">{t("respawnPenalty")}</p>
             </div>
           </div>
         )}
 
         {/* 결과 오버레이 */}
         {hud.result && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/70">
-            <div className="text-center text-white">
-              <p className="text-3xl font-bold">
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/75 backdrop-blur-sm">
+            <div className="rounded-3xl border border-zinc-700/60 bg-zinc-900/80 px-12 py-10 text-center text-white shadow-2xl">
+              <p className="text-5xl font-black tracking-tight drop-shadow-lg">
                 {hud.result.outcome === "clear" ? t("clear") : t("fail")}
               </p>
               {hud.result.outcome === "clear" && (
-                <p className="mt-2 text-3xl tracking-widest text-yellow-400">
+                <p className="mt-3 text-5xl tracking-[0.3em] text-yellow-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]">
                   {"★".repeat(hud.result.stars)}
-                  <span className="text-zinc-600">{"★".repeat(3 - hud.result.stars)}</span>
+                  <span className="text-zinc-700">{"★".repeat(3 - hud.result.stars)}</span>
                 </p>
               )}
               <div className="mt-3 space-y-0.5 text-sm text-zinc-300">
@@ -209,16 +233,16 @@ export default function GameCanvas({
                   !user && <p className="pt-1 text-zinc-500">{t("loginToSave")}</p>
                 )}
               </div>
-              <div className="mt-5 flex justify-center gap-3">
+              <div className="mt-6 flex justify-center gap-3">
                 <button
                   onClick={onRestart}
-                  className="rounded-lg bg-blue-600 px-5 py-2 font-semibold hover:bg-blue-500"
+                  className="rounded-xl bg-blue-600 px-7 py-2.5 text-lg font-bold shadow-lg shadow-blue-900/50 transition-transform hover:scale-105 hover:bg-blue-500"
                 >
                   {t("retry")}
                 </button>
                 <Link
                   href="/"
-                  className="rounded-lg bg-zinc-700 px-5 py-2 font-semibold hover:bg-zinc-600"
+                  className="rounded-xl bg-zinc-700 px-7 py-2.5 text-lg font-bold transition-transform hover:scale-105 hover:bg-zinc-600"
                 >
                   {t("toMenu")}
                 </Link>
