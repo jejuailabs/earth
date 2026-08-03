@@ -54,6 +54,8 @@ export class GameEngine {
   // 렌더러가 소비하는 새로 리빌된 셀 큐
   revealQueue: number[] = [];
   revealedCount = 0;
+  // 소유권 변경 시 증가 — 렌더러가 영토 메시 재빌드 시점을 감지
+  territoryVersion = 0;
 
   private visited: Uint8Array;
   private bfsQueue: Int32Array;
@@ -238,6 +240,7 @@ export class GameEngine {
   private setOwner(i: number, newId: number) {
     const old = this.owner[i];
     if (old === newId) return;
+    this.territoryVersion++;
     if (old !== NONE) this.players[old].areaCells--;
     this.owner[i] = newId;
     if (newId !== NONE) {

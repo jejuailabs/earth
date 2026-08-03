@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { GameEngine } from "@/game-engine/engine";
 import { Renderer } from "@/game-engine/render";
+import { Renderer3D } from "@/game-engine/render3d";
 import { GAME_CONFIG as C } from "@/game-engine/config";
 import { useAuth } from "@/components/AuthProvider";
 import { recordMatch, type MatchGains } from "@/lib/matches";
@@ -71,7 +72,14 @@ export default function GameCanvas({
     if (!canvas) return;
 
     const engine = new GameEngine(stage, mode);
-    const renderer = new Renderer(canvas, engine, bgUrl);
+    // 3D 렌더러 우선, WebGL 불가 환경에서는 2D 캔버스 폴백
+    let renderer: Renderer3D | Renderer;
+    try {
+      renderer = new Renderer3D(canvas, engine, bgUrl);
+    } catch (e) {
+      console.warn("WebGL 렌더러 초기화 실패 — 2D 폴백:", e);
+      renderer = new Renderer(canvas, engine, bgUrl);
+    }
     const stepMs = 1000 / C.tickRate;
     let last = performance.now();
     let acc = 0;
@@ -86,7 +94,7 @@ export default function GameCanvas({
         engine.tick(stepMs);
         acc -= stepMs;
       }
-      renderer.draw();
+      renderer.draw(now);
 
       hudAcc += dt;
       if (hudAcc >= 120 || engine.result) {
@@ -107,7 +115,7 @@ export default function GameCanvas({
         raf = requestAnimationFrame(loop);
       } else if (!recorded) {
         recorded = true;
-        renderer.draw();
+        renderer.draw(now);
         // 매치 결과 기록 (docs/03 §4) — 로그인 시에만
         const { user: u, userDoc: ud } = authRef.current;
         if (u && ud) {
@@ -135,6 +143,7 @@ export default function GameCanvas({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
+      if (renderer instanceof Renderer3D) renderer.dispose(); // WebGL 컨텍스트 누수 방지
     };
   }, [stage, mode, bgUrl]);
 
