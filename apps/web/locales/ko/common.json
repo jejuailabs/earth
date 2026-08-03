@@ -1,0 +1,20 @@
+{
+  "appTitle": "Game Earth",
+  "tagline": "영토를 점령해 숨겨진 세계를 함께 드러내는 땅따먹기",
+  "login": "Google로 로그인",
+  "logout": "로그아웃",
+  "loginFailed": "로그인 실패: {{message}}",
+  "level": "Lv.{{level}}",
+  "points": "{{points}}P",
+  "modeClassic": "자동전진 (classic)",
+  "modeManual": "수동조작 (manual)",
+  "stageSelect": "스테이지 선택",
+  "adminPanel": "어드민",
+  "mvpNotice": "솔로 봇전 MVP — 멀티플레이/상점은 다음 단계에서 연결됩니다",
+  "botBadge": "봇 Lv.{{tier}} ×{{count}}",
+  "goalArea": "목표: {{value}}% 점령 · 제한 {{time}}초",
+  "goalSurvive": "목표: {{value}}초 생존",
+  "themeEarth": "🌍 지구",
+  "themeSpace": "🌌 우주",
+  "loading": "불러오는 중…"
+}

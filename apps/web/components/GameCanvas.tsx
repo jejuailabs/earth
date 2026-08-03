@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { GameEngine } from "@/game-engine/engine";
 import { Renderer } from "@/game-engine/render";
 import { GAME_CONFIG as C } from "@/game-engine/config";
@@ -43,11 +44,14 @@ export default function GameCanvas({
   mode: ControlMode;
   onRestart: () => void;
 }) {
+  const { t } = useTranslation("game");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { user, userDoc } = useAuth();
   // 게임 루프 클로저에서 최신 로그인 상태를 참조하기 위한 ref
   const authRef = useRef({ user, userDoc });
-  authRef.current = { user, userDoc };
+  useEffect(() => {
+    authRef.current = { user, userDoc };
+  }, [user, userDoc]);
   const [hud, setHud] = useState<Hud>({
     timeLeftSec: 0,
     areaPct: 0,
@@ -134,7 +138,9 @@ export default function GameCanvas({
 
   const cond = stage.clearCondition;
   const goal =
-    cond.type === "areaPercent" ? `${cond.value}% 점령` : `${cond.value}초 생존`;
+    cond.type === "areaPercent"
+      ? t("goalAreaShort", { value: cond.value })
+      : t("goalSurviveShort", { value: cond.value });
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
@@ -144,7 +150,7 @@ export default function GameCanvas({
         <span>⏱ {hud.timeLeftSec}s</span>
         <span>
           🗺 {hud.areaPct.toFixed(1)}%{" "}
-          <span className="text-zinc-400">/ 목표 {goal}</span>
+          <span className="text-zinc-400">/ {t("goalPrefix", { goal })}</span>
         </span>
         <span>⭐ {hud.score}</span>
         <span>⚔ {hud.kills}</span>
@@ -161,11 +167,9 @@ export default function GameCanvas({
         {hud.respawnInSec !== null && !hud.result && (
           <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50">
             <div className="text-center text-white">
-              <p className="text-2xl font-bold">탈락!</p>
-              <p className="mt-1 text-lg">
-                부활까지 <span className="font-mono">{hud.respawnInSec}</span>초
-              </p>
-              <p className="mt-1 text-sm text-zinc-300">영토의 50%가 몰수됩니다</p>
+              <p className="text-2xl font-bold">{t("eliminated")}</p>
+              <p className="mt-1 text-lg">{t("respawnIn", { sec: hud.respawnInSec })}</p>
+              <p className="mt-1 text-sm text-zinc-300">{t("respawnPenalty")}</p>
             </div>
           </div>
         )}
@@ -175,7 +179,7 @@ export default function GameCanvas({
           <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/70">
             <div className="text-center text-white">
               <p className="text-3xl font-bold">
-                {hud.result.outcome === "clear" ? "스테이지 클리어!" : "실패..."}
+                {hud.result.outcome === "clear" ? t("clear") : t("fail")}
               </p>
               {hud.result.outcome === "clear" && (
                 <p className="mt-2 text-3xl tracking-widest text-yellow-400">
@@ -184,21 +188,25 @@ export default function GameCanvas({
                 </p>
               )}
               <div className="mt-3 space-y-0.5 text-sm text-zinc-300">
-                <p>점령률 {hud.result.areaPercent.toFixed(1)}%</p>
+                <p>{t("areaPct", { pct: hud.result.areaPercent.toFixed(1) })}</p>
                 <p>
-                  점수 {hud.result.score} · 킬 {hud.result.kills} · 데스 {hud.result.deaths}
+                  {t("statsLine", {
+                    score: hud.result.score,
+                    kills: hud.result.kills,
+                    deaths: hud.result.deaths,
+                  })}
                 </p>
                 {hud.gains ? (
                   <p className="pt-1 text-emerald-400">
-                    +{hud.gains.exp} EXP · +{hud.gains.points}P
+                    {t("gains", { exp: hud.gains.exp, points: hud.gains.points })}
                     {hud.gains.leveledUpTo && (
                       <span className="ml-2 font-bold text-yellow-400">
-                        레벨 업! Lv.{hud.gains.leveledUpTo}
+                        {t("levelUp", { level: hud.gains.leveledUpTo })}
                       </span>
                     )}
                   </p>
                 ) : (
-                  !user && <p className="pt-1 text-zinc-500">로그인하면 기록이 저장됩니다</p>
+                  !user && <p className="pt-1 text-zinc-500">{t("loginToSave")}</p>
                 )}
               </div>
               <div className="mt-5 flex justify-center gap-3">
@@ -206,13 +214,13 @@ export default function GameCanvas({
                   onClick={onRestart}
                   className="rounded-lg bg-blue-600 px-5 py-2 font-semibold hover:bg-blue-500"
                 >
-                  다시하기
+                  {t("retry")}
                 </button>
                 <Link
                   href="/"
                   className="rounded-lg bg-zinc-700 px-5 py-2 font-semibold hover:bg-zinc-600"
                 >
-                  메뉴로
+                  {t("toMenu")}
                 </Link>
               </div>
             </div>
@@ -222,9 +230,7 @@ export default function GameCanvas({
 
       {/* 조작 안내 */}
       <p className="text-xs text-zinc-400">
-        방향키 / WASD 이동
-        {mode === "manual" ? " · Space 정지/재개 (manual 모드)" : " · 자동 전진 (classic 모드)"}
-        {" · 자기 영역 밖에서 궤적이 잘리면 탈락"}
+        {mode === "manual" ? t("controlsManual") : t("controlsClassic")} · {t("controlsTrail")}
       </p>
     </div>
   );

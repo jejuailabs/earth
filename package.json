@@ -8,6 +8,7 @@
     "dev": "npm run dev --workspace=web",
     "dev:realtime": "npm run dev --workspace=realtime-server",
     "build": "npm run build --workspace=web",
-    "lint": "npm run lint --workspace=web"
+    "lint": "npm run lint --workspace=web",
+    "set-admin": "node scripts/set-admin.mjs"
   }
 }

@@ -1,0 +1,63 @@
+{
+  "title": "어드민 패널",
+  "accessDenied": "접근 권한이 없습니다. 관리자 계정으로 로그인하세요.",
+  "backToApp": "게임으로 돌아가기",
+  "nav": {
+    "dashboard": "대시보드",
+    "users": "회원 관리",
+    "stages": "스테이지",
+    "images": "이미지 검수",
+    "shop": "상점",
+    "logs": "액션 로그"
+  },
+  "dashboard": {
+    "users": "가입 유저",
+    "matches": "누적 매치",
+    "stages": "스테이지 (Firestore)",
+    "pendingImages": "검수 대기 이미지"
+  },
+  "users": {
+    "search": "이메일/이름 검색",
+    "suspend": "정지",
+    "unsuspend": "해제",
+    "makeAdmin": "admin 부여",
+    "removeAdmin": "admin 회수",
+    "confirmRole": "{{name}}의 role을 {{role}}(으)로 변경합니까?",
+    "confirmSuspend": "{{name}} 계정을 {{action}}합니까?",
+    "empty": "유저가 없습니다"
+  },
+  "stages": {
+    "create": "새 스테이지",
+    "seed": "기본 5종 시드 넣기",
+    "seedDone": "{{count}}개 스테이지를 시드했습니다",
+    "edit": "수정",
+    "delete": "삭제",
+    "confirmDelete": "스테이지 {{id}}를 삭제합니까?",
+    "empty": "Firestore에 스테이지가 없습니다. 시드를 넣거나 새로 만드세요. (게임은 그동안 내장 스테이지를 사용합니다)",
+    "save": "저장",
+    "cancel": "취소",
+    "active": "활성",
+    "inactive": "비활성",
+    "fields": {
+      "stageId": "스테이지 ID",
+      "order": "순서",
+      "nameKo": "이름 (ko)",
+      "nameEn": "이름 (en)",
+      "descKo": "설명 (ko)",
+      "descEn": "설명 (en)",
+      "botTier": "봇 티어",
+      "botCount": "봇 수",
+      "mapSize": "맵 크기",
+      "clearType": "클리어 조건",
+      "clearValue": "조건 값",
+      "timeLimitSec": "제한시간(초)",
+      "theme": "테마",
+      "valueZones": "가중치 존 (JSON)",
+      "isActive": "활성화"
+    }
+  },
+  "images": { "wip": "이미지 검수는 GPT Image 파이프라인(9단계) 연동 시 구현됩니다" },
+  "shop": { "wip": "상점 아이템 관리는 상점 시스템(10단계) 구현 시 함께 추가됩니다" },
+  "logs": { "empty": "기록된 액션이 없습니다", "action": "액션", "target": "대상", "admin": "관리자", "time": "시각" },
+  "error": "오류: {{message}}"
+}

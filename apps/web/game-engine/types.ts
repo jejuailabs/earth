@@ -23,8 +23,29 @@ export interface ValueZone {
 
 export type ClearConditionType = "areaPercent" | "surviveTime";
 
-// docs/03 stages 스키마의 로컬 버전 — Firestore 연동 전까지 lib/stages.ts에서 정적 제공.
-// name은 i18n 도입(docs/07) 시 { [locale]: string } 형태로 확장 예정.
+// Firestore 콘텐츠 다국어 맵 (docs/07 §4) — 미입력 언어는 ko로 폴백
+export interface LocalizedText {
+  ko: string;
+  en?: string;
+}
+
+// 스테이지 원본 정의 (docs/03 §2 스키마) — 정적/Firestore 공통
+export interface StageDef {
+  stageId: string;
+  order: number;
+  name: LocalizedText;
+  description: LocalizedText;
+  botTier: 1 | 2 | 3;
+  botCount: number;
+  mapSize: number;
+  clearCondition: { type: ClearConditionType; value: number };
+  timeLimitSec: number;
+  theme: "earth" | "space";
+  valueZones: ValueZone[];
+  isActive: boolean;
+}
+
+// 엔진/화면에 전달되는 로컬라이즈된 스테이지 (name/description은 현재 언어로 해석 완료)
 export interface StageConfig {
   stageId: string;
   order: number;

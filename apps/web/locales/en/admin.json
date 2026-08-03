@@ -1,0 +1,63 @@
+{
+  "title": "Admin Panel",
+  "accessDenied": "Access denied. Sign in with an admin account.",
+  "backToApp": "Back to game",
+  "nav": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "stages": "Stages",
+    "images": "Image review",
+    "shop": "Shop",
+    "logs": "Action logs"
+  },
+  "dashboard": {
+    "users": "Registered users",
+    "matches": "Total matches",
+    "stages": "Stages (Firestore)",
+    "pendingImages": "Images pending review"
+  },
+  "users": {
+    "search": "Search email/name",
+    "suspend": "Suspend",
+    "unsuspend": "Unsuspend",
+    "makeAdmin": "Grant admin",
+    "removeAdmin": "Revoke admin",
+    "confirmRole": "Change {{name}}'s role to {{role}}?",
+    "confirmSuspend": "{{action}} account {{name}}?",
+    "empty": "No users"
+  },
+  "stages": {
+    "create": "New stage",
+    "seed": "Seed default 5 stages",
+    "seedDone": "Seeded {{count}} stages",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Delete stage {{id}}?",
+    "empty": "No stages in Firestore. Seed or create one. (The game falls back to built-in stages meanwhile)",
+    "save": "Save",
+    "cancel": "Cancel",
+    "active": "Active",
+    "inactive": "Inactive",
+    "fields": {
+      "stageId": "Stage ID",
+      "order": "Order",
+      "nameKo": "Name (ko)",
+      "nameEn": "Name (en)",
+      "descKo": "Description (ko)",
+      "descEn": "Description (en)",
+      "botTier": "Bot tier",
+      "botCount": "Bot count",
+      "mapSize": "Map size",
+      "clearType": "Clear condition",
+      "clearValue": "Condition value",
+      "timeLimitSec": "Time limit (s)",
+      "theme": "Theme",
+      "valueZones": "Value zones (JSON)",
+      "isActive": "Active"
+    }
+  },
+  "images": { "wip": "Image review ships with the GPT Image pipeline (step 9)" },
+  "shop": { "wip": "Shop item management ships with the shop system (step 10)" },
+  "logs": { "empty": "No actions logged", "action": "Action", "target": "Target", "admin": "Admin", "time": "Time" },
+  "error": "Error: {{message}}"
+}

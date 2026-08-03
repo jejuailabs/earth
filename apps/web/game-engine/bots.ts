@@ -24,7 +24,6 @@ function rollExcursion(rng: () => number) {
 // 셀 경계마다 호출되어 다음 방향을 반환
 export function decideBotDir(engine: GameEngine, p: PlayerState): Vec {
   const brain = p.ai!;
-  const N = engine.N;
   const cur = engine.idx(p.cx, p.cy);
   const inOwn = engine.owner[cur] === p.id;
 

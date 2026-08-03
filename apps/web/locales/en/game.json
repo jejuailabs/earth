@@ -1,0 +1,22 @@
+{
+  "goalPrefix": "goal {{goal}}",
+  "goalAreaShort": "capture {{value}}%",
+  "goalSurviveShort": "survive {{value}}s",
+  "eliminated": "Eliminated!",
+  "respawnIn": "Respawning in {{sec}}s",
+  "respawnPenalty": "50% of your territory is forfeited",
+  "clear": "Stage clear!",
+  "fail": "Failed...",
+  "areaPct": "Territory {{pct}}%",
+  "statsLine": "Score {{score}} · Kills {{kills}} · Deaths {{deaths}}",
+  "gains": "+{{exp}} EXP · +{{points}}P",
+  "levelUp": "Level up! Lv.{{level}}",
+  "loginToSave": "Sign in to save your progress",
+  "retry": "Retry",
+  "toMenu": "Menu",
+  "controlsClassic": "Arrows / WASD to steer · auto-forward (classic)",
+  "controlsManual": "Arrows / WASD to move · Space to stop/go (manual)",
+  "controlsTrail": "You die if your trail is cut outside your territory",
+  "modeLabelClassic": "classic mode",
+  "modeLabelManual": "manual mode"
+}

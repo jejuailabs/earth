@@ -1,0 +1,22 @@
+{
+  "goalPrefix": "목표 {{goal}}",
+  "goalAreaShort": "{{value}}% 점령",
+  "goalSurviveShort": "{{value}}초 생존",
+  "eliminated": "탈락!",
+  "respawnIn": "부활까지 {{sec}}초",
+  "respawnPenalty": "영토의 50%가 몰수됩니다",
+  "clear": "스테이지 클리어!",
+  "fail": "실패...",
+  "areaPct": "점령률 {{pct}}%",
+  "statsLine": "점수 {{score}} · 킬 {{kills}} · 데스 {{deaths}}",
+  "gains": "+{{exp}} EXP · +{{points}}P",
+  "levelUp": "레벨 업! Lv.{{level}}",
+  "loginToSave": "로그인하면 기록이 저장됩니다",
+  "retry": "다시하기",
+  "toMenu": "메뉴로",
+  "controlsClassic": "방향키 / WASD 이동 · 자동 전진 (classic 모드)",
+  "controlsManual": "방향키 / WASD 이동 · Space 정지/재개 (manual 모드)",
+  "controlsTrail": "자기 영역 밖에서 궤적이 잘리면 탈락",
+  "modeLabelClassic": "자동전진 모드",
+  "modeLabelManual": "수동조작 모드"
+}

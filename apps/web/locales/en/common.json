@@ -1,0 +1,20 @@
+{
+  "appTitle": "Game Earth",
+  "tagline": "Claim territory and reveal the hidden world together",
+  "login": "Sign in with Google",
+  "logout": "Sign out",
+  "loginFailed": "Sign-in failed: {{message}}",
+  "level": "Lv.{{level}}",
+  "points": "{{points}}P",
+  "modeClassic": "Auto-forward (classic)",
+  "modeManual": "Full control (manual)",
+  "stageSelect": "Stage select",
+  "adminPanel": "Admin",
+  "mvpNotice": "Solo bot MVP — multiplayer & shop coming in later stages",
+  "botBadge": "Bots Lv.{{tier}} ×{{count}}",
+  "goalArea": "Goal: capture {{value}}% · {{time}}s limit",
+  "goalSurvive": "Goal: survive {{value}}s",
+  "themeEarth": "🌍 Earth",
+  "themeSpace": "🌌 Space",
+  "loading": "Loading…"
+}
