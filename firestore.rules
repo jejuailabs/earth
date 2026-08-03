@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// docs/02 §4 기반 — 배포 전 검증 필요 (Firebase 콘솔 > Firestore > 규칙에 붙여넣기,
+// 또는 `firebase deploy --only firestore:rules`)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 유저 문서: 본인만 읽기/쓰기, role 필드는 클라이언트에서 변경 불가 (docs/02 §3)
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.role == "user";
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && !("role" in request.resource.data.diff(resource.data).affectedKeys());
+    }
+
+    // 매치 기록: 로그인 유저 생성/조회 가능 (MVP — 치트 방지는 서버 검증 도입 시 강화)
+    match /matches/{matchId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+    }
+
+    // 관리자 영역: role == admin 만 (docs/02 §4)
+    match /admin/{document=**} {
+      allow read, write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // 스테이지/배경이미지: 전체 읽기, 쓰기는 Admin SDK(서버) 전용
+    match /stages/{stageId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /backgroundImages/{imageId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /shopItems/{itemId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
