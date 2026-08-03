@@ -35,15 +35,7 @@ function PlayInner() {
   }, [stageId]);
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-4 bg-zinc-950 px-4 py-6">
-      <div className="flex w-full max-w-[1024px] items-center justify-between">
-        <Link href="/" className="text-sm text-zinc-400 hover:text-zinc-200">
-          ← {t("stageSelect", { ns: "common" })}
-        </Link>
-        <span className="text-xs text-zinc-500">
-          {mode === "classic" ? t("modeLabelClassic") : t("modeLabelManual")}
-        </span>
-      </div>
+    <div className="fixed inset-0 bg-black">
       {def ? (
         <GameCanvas
           key={`${run}-${i18n.language}`}
@@ -53,8 +45,23 @@ function PlayInner() {
           onRestart={() => setRun((r) => r + 1)}
         />
       ) : (
-        <p className="mt-20 text-zinc-500">{t("loading", { ns: "common" })}</p>
+        <div className="flex h-full items-center justify-center text-zinc-500">
+          {t("loading", { ns: "common" })}
+        </div>
       )}
+
+      {/* 좌하단: 뒤로가기 + 모드 표시 (HUD 위에 떠 있는 컨트롤) */}
+      <div className="absolute bottom-3 left-4 z-20 flex items-center gap-3">
+        <Link
+          href="/"
+          className="rounded-full border border-white/10 bg-black/45 px-4 py-1.5 text-sm text-zinc-200 backdrop-blur-md transition-colors hover:bg-black/70 hover:text-white"
+        >
+          ← {t("stageSelect", { ns: "common" })}
+        </Link>
+        <span className="rounded-full bg-black/30 px-3 py-1 text-xs text-zinc-400 backdrop-blur-md">
+          {mode === "classic" ? t("modeLabelClassic") : t("modeLabelManual")}
+        </span>
+      </div>
     </div>
   );
 }

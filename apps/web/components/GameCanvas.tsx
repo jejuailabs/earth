@@ -1,6 +1,7 @@
 "use client";
 
-// 솔로 봇전 게임 화면 — 엔진 구동(고정 틱) + Canvas 렌더 + HUD
+// 솔로 봇전 게임 화면 — 풀스크린 3D 캔버스 + 플로팅 글래스 HUD
+// 엔진 구동(고정 틱)은 그대로, 캔버스가 뷰포트를 꽉 채우고 UI는 오버레이로 뜬다.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -20,7 +21,6 @@ interface Hud {
   kills: number;
   deaths: number;
   respawnInSec: number | null;
-  paused: boolean;
   result: GameResult | null;
   gains: MatchGains | null;
 }
@@ -62,7 +62,6 @@ export default function GameCanvas({
     kills: 0,
     deaths: 0,
     respawnInSec: null,
-    paused: false,
     result: null,
     gains: null,
   });
@@ -74,17 +73,25 @@ export default function GameCanvas({
     const engine = new GameEngine(stage, mode);
     // 3D 렌더러 우선, WebGL 불가 환경에서는 2D 캔버스 폴백
     let renderer: Renderer3D | Renderer;
+    let onResize: (() => void) | null = null;
     try {
       renderer = new Renderer3D(canvas, engine, bgUrl);
+      const r3d = renderer;
+      onResize = () => r3d.resize(canvas.clientWidth, canvas.clientHeight);
+      onResize();
+      window.addEventListener("resize", onResize);
     } catch (e) {
       console.warn("WebGL 렌더러 초기화 실패 — 2D 폴백:", e);
+      canvas.style.objectFit = "contain"; // 2D는 정사각형 유지
       renderer = new Renderer(canvas, engine, bgUrl);
     }
+
     const stepMs = 1000 / C.tickRate;
     let last = performance.now();
     let acc = 0;
     let hudAcc = 0;
     let raf = 0;
+    let recorded = false;
 
     const loop = (now: number) => {
       const dt = Math.min(now - last, 250); // 탭 백그라운드 복귀 시 폭주 방지
@@ -125,7 +132,6 @@ export default function GameCanvas({
         }
       }
     };
-    let recorded = false;
     raf = requestAnimationFrame(loop);
 
     const onKey = (e: KeyboardEvent) => {
@@ -143,6 +149,7 @@ export default function GameCanvas({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
+      if (onResize) window.removeEventListener("resize", onResize);
       if (renderer instanceof Renderer3D) renderer.dispose(); // WebGL 컨텍스트 누수 방지
     };
   }, [stage, mode, bgUrl]);
@@ -152,119 +159,134 @@ export default function GameCanvas({
     cond.type === "areaPercent"
       ? t("goalAreaShort", { value: cond.value })
       : t("goalSurviveShort", { value: cond.value });
-
-  // 목표 대비 진행률 (areaPercent 스테이지)
   const progress =
     cond.type === "areaPercent" ? Math.min(100, (hud.areaPct / cond.value) * 100) : null;
+  const timeStr = `${Math.floor(hud.timeLeftSec / 60)}:${String(hud.timeLeftSec % 60).padStart(2, "0")}`;
 
   return (
-    <div className="flex w-full flex-col items-center gap-4">
-      {/* 상단 HUD */}
-      <div className="w-full max-w-[1024px] rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900/95 via-zinc-800/90 to-zinc-900/95 px-6 py-3 shadow-lg shadow-black/40 backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-zinc-100">
-          <span className="text-lg font-bold tracking-tight">{stage.name}</span>
-          <span className="font-mono text-xl tabular-nums">
-            ⏱ {Math.floor(hud.timeLeftSec / 60)}:{String(hud.timeLeftSec % 60).padStart(2, "0")}
-          </span>
-          <span className="text-base">
-            🗺 <b className="tabular-nums">{hud.areaPct.toFixed(1)}%</b>{" "}
-            <span className="text-sm text-zinc-400">/ {t("goalPrefix", { goal })}</span>
-          </span>
-          <span className="text-base">
-            ⭐ <b className="tabular-nums">{hud.score}</b>
-          </span>
-          <span className="text-base">
-            ⚔ <b className="tabular-nums">{hud.kills}</b>
-          </span>
-        </div>
+    <div className="absolute inset-0 overflow-hidden bg-black">
+      {/* 풀스크린 캔버스 */}
+      <canvas ref={canvasRef} className="block h-full w-full" />
+
+      {/* ── 플로팅 HUD ── */}
+      {/* 좌상단: 스테이지 + 목표 진행 */}
+      <div className="pointer-events-none absolute left-4 top-4 min-w-64 rounded-2xl border border-white/10 bg-black/45 px-5 py-3 shadow-xl backdrop-blur-md">
+        <p className="text-lg font-bold text-white drop-shadow">{stage.name}</p>
+        <p className="mt-0.5 text-sm text-zinc-300">
+          🗺 <b className="tabular-nums text-white">{hud.areaPct.toFixed(1)}%</b>{" "}
+          <span className="text-zinc-400">/ {t("goalPrefix", { goal })}</span>
+        </p>
         {progress !== null && (
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-950/80">
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 transition-[width] duration-300"
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 shadow-[0_0_8px_rgba(56,189,248,0.8)] transition-[width] duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
         )}
       </div>
 
-      {/* 게임 캔버스 */}
-      <div className="relative w-full max-w-[1024px]">
-        <canvas
-          ref={canvasRef}
-          className="w-full rounded-2xl border border-zinc-700/70 bg-zinc-950 shadow-2xl shadow-black/60"
-        />
-
-        {/* 부활 대기 오버레이 */}
-        {hud.respawnInSec !== null && !hud.result && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/55 backdrop-blur-[2px]">
-            <div className="text-center text-white">
-              <p className="text-4xl font-black drop-shadow-lg">{t("eliminated")}</p>
-              <p className="mt-2 text-2xl font-semibold tabular-nums">
-                {t("respawnIn", { sec: hud.respawnInSec })}
-              </p>
-              <p className="mt-2 text-sm text-zinc-300">{t("respawnPenalty")}</p>
-            </div>
-          </div>
-        )}
-
-        {/* 결과 오버레이 */}
-        {hud.result && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/75 backdrop-blur-sm">
-            <div className="rounded-3xl border border-zinc-700/60 bg-zinc-900/80 px-12 py-10 text-center text-white shadow-2xl">
-              <p className="text-5xl font-black tracking-tight drop-shadow-lg">
-                {hud.result.outcome === "clear" ? t("clear") : t("fail")}
-              </p>
-              {hud.result.outcome === "clear" && (
-                <p className="mt-3 text-5xl tracking-[0.3em] text-yellow-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]">
-                  {"★".repeat(hud.result.stars)}
-                  <span className="text-zinc-700">{"★".repeat(3 - hud.result.stars)}</span>
-                </p>
-              )}
-              <div className="mt-3 space-y-0.5 text-sm text-zinc-300">
-                <p>{t("areaPct", { pct: hud.result.areaPercent.toFixed(1) })}</p>
-                <p>
-                  {t("statsLine", {
-                    score: hud.result.score,
-                    kills: hud.result.kills,
-                    deaths: hud.result.deaths,
-                  })}
-                </p>
-                {hud.gains ? (
-                  <p className="pt-1 text-emerald-400">
-                    {t("gains", { exp: hud.gains.exp, points: hud.gains.points })}
-                    {hud.gains.leveledUpTo && (
-                      <span className="ml-2 font-bold text-yellow-400">
-                        {t("levelUp", { level: hud.gains.leveledUpTo })}
-                      </span>
-                    )}
-                  </p>
-                ) : (
-                  !user && <p className="pt-1 text-zinc-500">{t("loginToSave")}</p>
-                )}
-              </div>
-              <div className="mt-6 flex justify-center gap-3">
-                <button
-                  onClick={onRestart}
-                  className="rounded-xl bg-blue-600 px-7 py-2.5 text-lg font-bold shadow-lg shadow-blue-900/50 transition-transform hover:scale-105 hover:bg-blue-500"
-                >
-                  {t("retry")}
-                </button>
-                <Link
-                  href="/"
-                  className="rounded-xl bg-zinc-700 px-7 py-2.5 text-lg font-bold transition-transform hover:scale-105 hover:bg-zinc-600"
-                >
-                  {t("toMenu")}
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* 상단 중앙: 타이머 */}
+      <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-2xl border border-white/10 bg-black/45 px-7 py-2.5 shadow-xl backdrop-blur-md">
+        <p
+          className={`font-mono text-3xl font-bold tabular-nums drop-shadow ${
+            hud.timeLeftSec <= 15 ? "animate-pulse text-red-400" : "text-white"
+          }`}
+        >
+          {timeStr}
+        </p>
       </div>
 
-      {/* 조작 안내 */}
-      <p className="text-xs text-zinc-400">
+      {/* 우상단: 점수/킬 */}
+      <div className="pointer-events-none absolute right-4 top-4 flex gap-3">
+        <div className="rounded-2xl border border-white/10 bg-black/45 px-5 py-2.5 text-center shadow-xl backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-widest text-zinc-400">SCORE</p>
+          <p className="font-mono text-xl font-bold tabular-nums text-yellow-300">{hud.score}</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-black/45 px-5 py-2.5 text-center shadow-xl backdrop-blur-md">
+          <p className="text-[10px] uppercase tracking-widest text-zinc-400">KILL</p>
+          <p className="font-mono text-xl font-bold tabular-nums text-red-300">{hud.kills}</p>
+        </div>
+      </div>
+
+      {/* 하단: 조작 안내 */}
+      <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/40 px-5 py-1.5 text-xs text-zinc-300 backdrop-blur-md">
         {mode === "manual" ? t("controlsManual") : t("controlsClassic")} · {t("controlsTrail")}
       </p>
+
+      {/* 부활 대기 오버레이 */}
+      {hud.respawnInSec !== null && !hud.result && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/55 backdrop-blur-[3px]">
+          <div className="text-center text-white">
+            <p className="text-6xl font-black drop-shadow-[0_0_25px_rgba(239,68,68,0.7)]">
+              {t("eliminated")}
+            </p>
+            <p className="mt-4 text-3xl font-semibold tabular-nums">
+              {t("respawnIn", { sec: hud.respawnInSec })}
+            </p>
+            <p className="mt-2 text-zinc-300">{t("respawnPenalty")}</p>
+          </div>
+        </div>
+      )}
+
+      {/* 결과 오버레이 */}
+      {hud.result && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="rounded-3xl border border-white/10 bg-zinc-900/80 px-16 py-12 text-center text-white shadow-2xl">
+            <p
+              className={`text-6xl font-black tracking-tight ${
+                hud.result.outcome === "clear"
+                  ? "drop-shadow-[0_0_30px_rgba(74,222,128,0.5)]"
+                  : "drop-shadow-[0_0_30px_rgba(239,68,68,0.5)]"
+              }`}
+            >
+              {hud.result.outcome === "clear" ? t("clear") : t("fail")}
+            </p>
+            {hud.result.outcome === "clear" && (
+              <p className="mt-4 text-6xl tracking-[0.35em] text-yellow-400 drop-shadow-[0_0_16px_rgba(250,204,21,0.7)]">
+                {"★".repeat(hud.result.stars)}
+                <span className="text-zinc-700">{"★".repeat(3 - hud.result.stars)}</span>
+              </p>
+            )}
+            <div className="mt-5 space-y-1 text-zinc-300">
+              <p>{t("areaPct", { pct: hud.result.areaPercent.toFixed(1) })}</p>
+              <p>
+                {t("statsLine", {
+                  score: hud.result.score,
+                  kills: hud.result.kills,
+                  deaths: hud.result.deaths,
+                })}
+              </p>
+              {hud.gains ? (
+                <p className="pt-1 text-lg font-semibold text-emerald-400">
+                  {t("gains", { exp: hud.gains.exp, points: hud.gains.points })}
+                  {hud.gains.leveledUpTo && (
+                    <span className="ml-2 font-bold text-yellow-400">
+                      {t("levelUp", { level: hud.gains.leveledUpTo })}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                !user && <p className="pt-1 text-sm text-zinc-500">{t("loginToSave")}</p>
+              )}
+            </div>
+            <div className="mt-8 flex justify-center gap-4">
+              <button
+                onClick={onRestart}
+                className="rounded-xl bg-blue-600 px-9 py-3 text-xl font-bold shadow-lg shadow-blue-900/50 transition-transform hover:scale-105 hover:bg-blue-500"
+              >
+                {t("retry")}
+              </button>
+              <Link
+                href="/"
+                className="rounded-xl bg-zinc-700 px-9 py-3 text-xl font-bold transition-transform hover:scale-105 hover:bg-zinc-600"
+              >
+                {t("toMenu")}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

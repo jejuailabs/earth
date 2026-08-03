@@ -9,8 +9,6 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { NONE, type GameEngine } from "./engine";
 
-const VIEW_W = 1280;
-const VIEW_H = 800;
 const GROUND_TEX = 1024; // 바닥 텍스처 해상도
 const TERRITORY_H = 0.75; // 영토 블록 높이
 const TRAIL_H = 0.4;
@@ -47,11 +45,12 @@ export class Renderer3D {
     bgUrl?: string,
   ) {
     const N = engine.N;
-    canvas.width = VIEW_W;
-    canvas.height = VIEW_H;
+    const initW = canvas.clientWidth || 1280;
+    const initH = canvas.clientHeight || 800;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setSize(VIEW_W, VIEW_H, false);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    this.renderer.setSize(initW, initH, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -64,7 +63,7 @@ export class Renderer3D {
     this.scene.fog = new THREE.Fog(bgColor, 140, 260);
 
     // ── 카메라: 틸트 뷰 + 플레이어 방향 패럴럭스 ──
-    this.camera = new THREE.PerspectiveCamera(45, VIEW_W / VIEW_H, 1, 500);
+    this.camera = new THREE.PerspectiveCamera(45, initW / initH, 1, 500);
     this.camTarget.set(N / 2, 0, N / 2);
     this.camPos.set(N / 2, 82, N / 2 + 86);
     this.camera.position.copy(this.camPos);
@@ -245,9 +244,18 @@ export class Renderer3D {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.composer.addPass(
-      new UnrealBloomPass(new THREE.Vector2(VIEW_W / 2, VIEW_H / 2), 0.55, 0.5, 0.82),
+      new UnrealBloomPass(new THREE.Vector2(initW / 2, initH / 2), 0.55, 0.5, 0.82),
     );
     this.composer.addPass(new OutputPass());
+  }
+
+  // 뷰포트 크기 변경 대응 (풀스크린 모드)
+  resize(width: number, height: number) {
+    if (this.disposed || width === 0 || height === 0) return;
+    this.renderer.setSize(width, height, false);
+    this.composer.setSize(width, height);
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
   }
 
   // ── 매 프레임 ──────────────────────────────────────────
