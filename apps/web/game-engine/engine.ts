@@ -4,6 +4,7 @@
 
 import { GAME_CONFIG as C } from "./config";
 import { DIRS, type ControlMode, type GameResult, type StageConfig, type Vec } from "./types";
+// (Powerup 타입은 이 파일에서 선언한다 — 아래 참조)
 import { decideBotDir, makeBotBrain, type BotBrain } from "./bots";
 
 export { DIRS };
@@ -35,7 +36,17 @@ export interface PlayerState {
   kills: number;
   deaths: number;
   score: number;
+  boostUntil: number; // 스피드 부스트가 끝나는 시각(ms, timeMs 기준)
   ai: BotBrain | null;
+}
+
+// 맵에 떨어지는 스피드 아이템 (docs/04 §7)
+export interface Powerup {
+  id: number;
+  cx: number;
+  cy: number;
+  spawnedAt: number;
+  expiresAt: number;
 }
 
 const BOT_COLORS = ["#ef4444", "#f97316", "#a855f7", "#14b8a6", "#eab308", "#ec4899"];
@@ -63,6 +74,13 @@ export class GameEngine {
   // 소유권 변경 시 증가 — 렌더러가 영토 메시 재빌드 시점을 감지
   territoryVersion = 0;
 
+  // 필드에 떨어져 있는 스피드 아이템 (docs/04 §7)
+  powerups: Powerup[] = [];
+  private nextPowerupId = 1;
+  private nextPowerupAt = 0;
+  // 렌더러가 획득 이펙트를 재생하도록 소비하는 큐
+  pickupEvents: { cx: number; cy: number; byHuman: boolean }[] = [];
+
   private visited: Int32Array; // 세대 스탬프 (0으로 되돌릴 필요 없음)
   private visitGen = 0;
   private bfsQueue: Int32Array;
@@ -87,6 +105,7 @@ export class GameEngine {
     this.buildZoneMultipliers();
     this.spawnHuman();
     this.spawnBots();
+    this.nextPowerupAt = C.powerup.firstSpawnSec * 1000;
   }
 
   idx(x: number, y: number) {
@@ -139,6 +158,7 @@ export class GameEngine {
     if (this.result) return;
     this.timeMs += dtMs;
 
+    this.updatePowerups();
     for (const p of this.players) {
       if (!p.alive && this.timeMs >= p.respawnAt) this.respawn(p);
     }
@@ -150,7 +170,9 @@ export class GameEngine {
 
   private advance(p: PlayerState, dtMs: number) {
     if (!p.moving || (p.dir.x === 0 && p.dir.y === 0)) return;
-    const speed = p.kind === "human" ? C.playerSpeed : C.botSpeed;
+    const base = p.kind === "human" ? C.playerSpeed : C.botSpeed;
+    // 스피드 부스트 적용 (docs/04 §7)
+    const speed = this.timeMs < p.boostUntil ? base * C.powerup.speedMultiplier : base;
     p.progress += (speed * dtMs) / 1000;
 
     let guard = 0;
@@ -186,6 +208,7 @@ export class GameEngine {
     }
     p.cx = nx;
     p.cy = ny;
+    this.collectPowerups(p);
     const i = this.idx(nx, ny);
 
     // 2. 궤적 충돌 — 궤적 소유자가 탈락 (docs/04 §3, 자기 궤적 포함)
@@ -205,6 +228,83 @@ export class GameEngine {
     // 4. 영역 밖 → 궤적 생성
     this.trailOwner[i] = p.id;
     p.trail.push(i);
+  }
+
+  // ── 스피드 아이템 (docs/04 §7) ─────────────────────────
+
+  private updatePowerups() {
+    const P = C.powerup;
+    // 수명이 지난 것 제거
+    if (this.powerups.length > 0) {
+      this.powerups = this.powerups.filter((u) => this.timeMs < u.expiresAt);
+    }
+    // 주기적으로 하나 떨어뜨린다
+    if (this.timeMs >= this.nextPowerupAt) {
+      this.nextPowerupAt = this.timeMs + P.spawnIntervalSec * 1000;
+      if (this.powerups.length < P.maxOnField) this.dropPowerup();
+    }
+  }
+
+  private dropPowerup() {
+    const P = C.powerup;
+    // 일부는 플레이어 주변에 떨어뜨린다 (넓은 맵에서도 실제로 만날 수 있도록)
+    const h = this.human;
+    const nearPlayer = h.alive && this.rng() < P.nearPlayerChance;
+
+    // 궤적 위나 다른 아이템과 겹치지 않는 자리를 찾는다 (못 찾으면 이번 주기는 건너뜀)
+    for (let attempt = 0; attempt < 40; attempt++) {
+      let cx: number;
+      let cy: number;
+      if (nearPlayer) {
+        const R = P.nearPlayerRadius;
+        cx = h.cx + ((this.rng() * (2 * R + 1)) | 0) - R;
+        cy = h.cy + ((this.rng() * (2 * R + 1)) | 0) - R;
+        if (cx < 1 || cy < 1 || cx > this.W - 2 || cy > this.H - 2) continue;
+      } else {
+        cx = 1 + ((this.rng() * (this.W - 2)) | 0);
+        cy = 1 + ((this.rng() * (this.H - 2)) | 0);
+      }
+      const i = this.idx(cx, cy);
+      if (this.trailOwner[i] !== NONE) continue;
+      if (this.powerups.some((u) => Math.abs(u.cx - cx) + Math.abs(u.cy - cy) < 6)) continue;
+      this.powerups.push({
+        id: this.nextPowerupId++,
+        cx,
+        cy,
+        spawnedAt: this.timeMs,
+        expiresAt: this.timeMs + C.powerup.lifetimeSec * 1000,
+      });
+      return;
+    }
+  }
+
+  // 플레이어가 셀에 들어설 때 근처 아이템을 줍는다
+  private collectPowerups(p: PlayerState) {
+    if (this.powerups.length === 0) return;
+    const R = C.powerup.pickupRadius;
+    for (let k = this.powerups.length - 1; k >= 0; k--) {
+      const u = this.powerups[k];
+      if (Math.abs(u.cx - p.cx) + Math.abs(u.cy - p.cy) > R) continue;
+      this.powerups.splice(k, 1);
+      // 이미 부스트 중이면 남은 시간에 이어붙인다
+      const from = Math.max(this.timeMs, p.boostUntil);
+      p.boostUntil = from + C.powerup.durationSec * 1000;
+      this.pickupEvents.push({ cx: u.cx, cy: u.cy, byHuman: p.kind === "human" });
+    }
+  }
+
+  // 봇이 주우러 갈 만한 가까운 아이템 (없으면 null) — bots.ts가 사용
+  nearestPowerup(p: PlayerState): Powerup | null {
+    let best: Powerup | null = null;
+    let bestDist = C.powerup.botSeekRadius + 1;
+    for (const u of this.powerups) {
+      const d = Math.abs(u.cx - p.cx) + Math.abs(u.cy - p.cy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = u;
+      }
+    }
+    return best;
   }
 
   // 자기 영토로 돌아가는 최단 경로의 '첫 걸음'을 찾는다 (자기 궤적은 밟으면 죽으므로 통과 불가).
@@ -508,6 +608,7 @@ export class GameEngine {
       kills: 0,
       deaths: 0,
       score: 0,
+      boostUntil: 0,
       ai: null,
     };
   }

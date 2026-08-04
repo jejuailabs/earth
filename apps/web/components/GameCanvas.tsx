@@ -24,6 +24,7 @@ interface Hud {
   kills: number;
   deaths: number;
   respawnInSec: number | null;
+  boostLeftSec: number; // 스피드 부스트 남은 시간 (0이면 미적용)
   result: GameResult | null;
   gains: MatchGains | null;
 }
@@ -84,6 +85,14 @@ function drawMinimap(
     ctx.beginPath();
     ctx.arc(ox + (z.x + 0.5) * px, oy + (z.y + 0.5) * px, z.radius * px, 0, Math.PI * 2);
     ctx.stroke();
+  }
+  // 스피드 아이템 (깜빡이는 하늘색 점)
+  for (const u of engine.powerups) {
+    const pulse = 0.55 + 0.45 * Math.abs(Math.sin(nowMs / 220 + u.id));
+    ctx.fillStyle = `rgba(124, 243, 255, ${pulse})`;
+    ctx.beginPath();
+    ctx.arc(ox + (u.cx + 0.5) * px, oy + (u.cy + 0.5) * px, 3.2, 0, Math.PI * 2);
+    ctx.fill();
   }
   // 플레이어 점
   for (const p of engine.players) {
@@ -157,6 +166,7 @@ export default function GameCanvas({
     kills: 0,
     deaths: 0,
     respawnInSec: null,
+    boostLeftSec: 0,
     result: null,
     gains: null,
   });
@@ -237,6 +247,7 @@ export default function GameCanvas({
           kills: h.kills,
           deaths: h.deaths,
           respawnInSec: h.alive ? null : Math.ceil((h.respawnAt - engine.timeMs) / 1000),
+          boostLeftSec: Math.max(0, (h.boostUntil - engine.timeMs) / 1000),
           result: engine.result,
         }));
       }
@@ -408,7 +419,16 @@ export default function GameCanvas({
           </div>
         </div>
 
-        {/* 우하단: 미니맵 */}
+        {/* 스피드 부스트 표시 */}
+      {hud.boostLeftSec > 0 && (
+        <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded-full border border-cyan-300/40 bg-cyan-500/20 px-5 py-1.5 shadow-[0_0_20px_rgba(56,220,255,0.5)] backdrop-blur-md">
+          <p className="text-sm font-bold text-cyan-100">
+            ⚡ {t("boost")} {hud.boostLeftSec.toFixed(1)}s
+          </p>
+        </div>
+      )}
+
+      {/* 우하단: 미니맵 */}
         <div className="absolute bottom-2 right-2 rounded-xl border border-white/15 bg-black/55 p-1 shadow-xl backdrop-blur-md sm:bottom-4 sm:right-4 sm:rounded-2xl sm:p-2">
           <canvas
             ref={minimapRef}

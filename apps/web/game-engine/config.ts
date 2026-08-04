@@ -35,6 +35,23 @@ export const GAME_CONFIG = {
     threatRadius: 6, // 자기 궤적에 적이 이 거리 안이면 귀환
   },
 
+  // 파워업 — 스피드 부스트 (docs/04 §7, 캐주얼 모드 한정)
+  // 맵 곳곳에 주기적으로 떨어지고, 밟으면 일정 시간 이동속도가 오른다.
+  powerup: {
+    spawnIntervalSec: 9, // 이 간격마다 하나씩 떨어진다
+    firstSpawnSec: 4, // 첫 드롭까지
+    maxOnField: 5, // 동시에 필드에 존재하는 최대 개수
+    lifetimeSec: 22, // 줍지 않으면 사라진다
+    speedMultiplier: 1.7,
+    durationSec: 4,
+    pickupRadius: 1, // 이 칸 이내로 지나가면 획득 (셀 단위 맨해튼)
+    botSeekRadius: 12, // 봇이 이 거리 안의 아이템을 주우러 간다
+    // 맵이 넓으면 완전 무작위 드롭은 플레이어가 평생 못 만난다.
+    // 일부는 플레이어 주변에 떨어뜨려 실제로 주울 수 있게 한다.
+    nearPlayerChance: 0.55,
+    nearPlayerRadius: 26,
+  },
+
   // 점수 (docs/04 §4) — 셀 1개 점령 = 기본 1점 × 가중치 존 배율
   pointsPerCell: 1,
 

@@ -43,6 +43,13 @@ export class Renderer3D {
   private playerBodies: THREE.Mesh[] = [];
   private zoneRings: THREE.Mesh[] = [];
   private lastTerritoryVersion = -1;
+  // 스피드 아이템: 엔진의 아이템 id → 3D 오브젝트
+  private powerupMeshes = new Map<number, THREE.Group>();
+  private powerupGeo: THREE.BufferGeometry;
+  private powerupMat: THREE.Material;
+  private powerupGlowMat: THREE.Material;
+  // 획득 이펙트 (링이 퍼지며 사라짐)
+  private pickupFx: { mesh: THREE.Mesh; bornMs: number }[] = [];
 
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3();
@@ -294,6 +301,17 @@ export class Renderer3D {
       this.scene.add(stars);
     }
 
+    // ── 스피드 아이템 리소스 (인스턴스는 매 프레임 증감하므로 지오/머티리얼만 공유) ──
+    this.powerupGeo = new THREE.OctahedronGeometry(0.85, 0);
+    this.powerupMat = new THREE.MeshBasicMaterial({ color: 0x7cf3ff, toneMapped: false });
+    this.powerupGlowMat = new THREE.MeshBasicMaterial({
+      color: 0x2bd4ff,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.BackSide,
+    });
+
     // ── 포스트프로세싱: 축소 해상도 블룸 (모바일은 1/3로 더 낮춤) ──
     const div = this.bloomDiv();
     this.composer = new EffectComposer(this.renderer);
@@ -396,6 +414,9 @@ export class Renderer3D {
       this.playerBodies[p.id].rotation.y = nowMs / 900 + p.id;
     }
 
+    // 4-1. 스피드 아이템 — 필드 상태와 3D 오브젝트를 맞춘다
+    this.syncPowerups(nowMs);
+
     // 5. 존 링 펄스
     for (let i = 0; i < this.zoneRings.length; i++) {
       const s = 1 + 0.05 * Math.sin(nowMs / 320 + i);
@@ -426,6 +447,80 @@ export class Renderer3D {
   }
 
   // ── 내부 헬퍼 ─────────────────────────────────────────
+
+  // 필드의 스피드 아이템 목록과 3D 오브젝트를 동기화하고 애니메이션시킨다
+  private syncPowerups(nowMs: number) {
+    const engine = this.engine;
+    const live = new Set<number>();
+
+    for (const u of engine.powerups) {
+      live.add(u.id);
+      let g = this.powerupMeshes.get(u.id);
+      if (!g) {
+        g = new THREE.Group();
+        const core = new THREE.Mesh(this.powerupGeo, this.powerupMat);
+        const glow = new THREE.Mesh(this.powerupGeo, this.powerupGlowMat);
+        glow.scale.setScalar(1.9);
+        g.add(core, glow);
+        const light = new THREE.PointLight(0x5fe6ff, 14, 12, 2);
+        g.add(light);
+        g.position.set(u.cx + 0.5, 1.5, u.cy + 0.5);
+        this.scene.add(g);
+        this.powerupMeshes.set(u.id, g);
+      }
+      // 떨어지는 연출 + 부양/회전, 사라지기 직전엔 깜빡인다
+      const age = engine.timeMs - u.spawnedAt;
+      const drop = Math.min(1, age / 380);
+      const bob = Math.sin(nowMs / 300 + u.id) * 0.18;
+      g.position.y = 1.5 + bob + (1 - drop) * 9;
+      g.rotation.y = nowMs / 500;
+      g.rotation.x = 0.35;
+      const left = u.expiresAt - engine.timeMs;
+      const blink = left < 3500 ? 0.45 + 0.55 * Math.abs(Math.sin(nowMs / 130)) : 1;
+      g.scale.setScalar((0.6 + 0.4 * drop) * blink);
+    }
+
+    // 사라진 아이템 정리
+    for (const [id, g] of this.powerupMeshes) {
+      if (live.has(id)) continue;
+      this.scene.remove(g);
+      this.powerupMeshes.delete(id);
+    }
+
+    // 획득 이펙트 생성
+    if (engine.pickupEvents.length > 0) {
+      for (const ev of engine.pickupEvents) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(1, 0.16, 8, 32),
+          new THREE.MeshBasicMaterial({
+            color: ev.byHuman ? 0x9ffcff : 0xffc36b,
+            toneMapped: false,
+            transparent: true,
+          }),
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(ev.cx + 0.5, 1.2, ev.cy + 0.5);
+        this.scene.add(ring);
+        this.pickupFx.push({ mesh: ring, bornMs: nowMs });
+      }
+      engine.pickupEvents.length = 0;
+    }
+
+    // 이펙트 진행/정리
+    for (let k = this.pickupFx.length - 1; k >= 0; k--) {
+      const fx = this.pickupFx[k];
+      const t = (nowMs - fx.bornMs) / 520;
+      if (t >= 1) {
+        this.scene.remove(fx.mesh);
+        fx.mesh.geometry.dispose();
+        (fx.mesh.material as THREE.Material).dispose();
+        this.pickupFx.splice(k, 1);
+        continue;
+      }
+      fx.mesh.scale.setScalar(1 + t * 4);
+      (fx.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - t;
+    }
+  }
 
   // 셀 하나를 배경 원본에서 잘라 바닥 텍스처에 밝게 찍는다 (= 리빌)
   private drawGroundCell(x: number, y: number) {

@@ -71,6 +71,15 @@ export function decideBotDir(engine: GameEngine, p: PlayerState): Vec {
     if (home !== NONE) return greedyToward(engine, p, home, valid);
   }
 
+  // ── 근처에 스피드 아이템이 있으면 주워간다 (귀환보다는 낮은 우선순위) ──
+  if (!overExtended) {
+    const item = engine.nearestPowerup(p);
+    if (item) {
+      const toward = greedyToward(engine, p, engine.idx(item.cx, item.cy), valid);
+      if (toward) return toward;
+    }
+  }
+
   // ── 확장/배회 (Lv.1 기본 행동) ──
   if (inOwn) {
     // 일정 확률로 원정 시작: 아무 방향이나 (경계를 넘으면 자연히 궤적 시작)

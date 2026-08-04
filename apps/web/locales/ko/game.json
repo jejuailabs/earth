@@ -22,5 +22,6 @@
   "touchHint": "화면을 드래그해 방향 조작 · 두 손가락으로 확대/축소",
   "touchHintManual": "드래그해 이동(떼면 정지) · 두 손가락으로 확대/축소",
   "modeLabelClassic": "자동전진 모드",
-  "modeLabelManual": "수동조작 모드"
+  "modeLabelManual": "수동조작 모드",
+  "boost": "스피드 부스트"
 }

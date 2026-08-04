@@ -22,5 +22,6 @@
   "touchHint": "Drag anywhere to steer · pinch to zoom",
   "touchHintManual": "Drag to move (release to stop) · pinch to zoom",
   "modeLabelClassic": "classic mode",
-  "modeLabelManual": "manual mode"
+  "modeLabelManual": "manual mode",
+  "boost": "Speed boost"
 }
