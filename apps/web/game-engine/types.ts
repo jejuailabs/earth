@@ -23,6 +23,29 @@ export interface ValueZone {
 
 export type ClearConditionType = "areaPercent" | "surviveTime";
 
+// 게임장 크기 프리셋 — 값은 정사각형일 때의 한 변(셀). 봇전 기본은 medium(100×100=1만 셀).
+// 배경이미지 비율이 붙으면 넓이는 유지한 채 가로/세로로 늘려 배분한다.
+export type FieldSize = "small" | "medium" | "large";
+
+export const FIELD_BASE: Record<FieldSize, number> = {
+  small: 72,
+  medium: 100,
+  large: 142,
+};
+
+export const MIN_FIELD_SIDE = 40;
+export const MAX_FIELD_SIDE = 400;
+
+// 크기 프리셋 + 배경이미지 비율(가로/세로) → 실제 격자 크기.
+// 넓이(셀 수)는 프리셋대로 유지되므로 비율만 바뀌고 게임 분량은 같다.
+export function fieldDimensions(size: FieldSize, aspect = 1) {
+  const base = FIELD_BASE[size] ?? FIELD_BASE.medium;
+  const a = Number.isFinite(aspect) && aspect > 0 ? Math.min(4, Math.max(0.25, aspect)) : 1;
+  const r = Math.sqrt(a);
+  const clamp = (v: number) => Math.max(MIN_FIELD_SIDE, Math.min(MAX_FIELD_SIDE, Math.round(v)));
+  return { width: clamp(base * r), height: clamp(base / r) };
+}
+
 // Firestore 콘텐츠 다국어 맵 (docs/07 §4) — 미입력 언어는 ko로 폴백
 export interface LocalizedText {
   ko: string;
@@ -37,7 +60,7 @@ export interface StageDef {
   description: LocalizedText;
   botTier: 1 | 2 | 3;
   botCount: number;
-  mapSize: number;
+  fieldSize: FieldSize; // 게임장 크기 (소/중/대)
   clearCondition: { type: ClearConditionType; value: number };
   timeLimitSec: number;
   theme: "earth" | "space";
@@ -54,7 +77,9 @@ export interface StageConfig {
   description: string;
   botTier: 1 | 2 | 3;
   botCount: number;
-  mapSize: number;
+  fieldSize: FieldSize;
+  mapWidth: number; // fieldSize + 배경이미지 비율로 산출된 실제 격자 크기
+  mapHeight: number;
   clearCondition: { type: ClearConditionType; value: number };
   timeLimitSec: number; // areaPercent 스테이지의 제한시간 (surviveTime은 value가 곧 시간)
   theme: "earth" | "space";

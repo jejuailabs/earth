@@ -37,9 +37,10 @@ function drawMinimap(
   nowMs: number,
 ) {
   if (!canvas) return;
-  const N = engine.N;
+  const W = engine.W;
+  const H = engine.H;
   const d = data.data;
-  for (let i = 0; i < N * N; i++) {
+  for (let i = 0; i < W * H; i++) {
     const o = i * 4;
     const id = engine.owner[i];
     if (id >= 0) {
@@ -59,14 +60,19 @@ function drawMinimap(
   }
   cellCtx.putImageData(data, 0, 0);
 
+  // 격자 비율을 유지한 채 미니맵 사각형 안에 맞춘다 (레터박스)
   const ctx = canvas.getContext("2d")!;
   const S = canvas.width;
-  const px = S / N;
+  const px = S / Math.max(W, H);
+  const dw = W * px;
+  const dh = H * px;
+  const ox = (S - dw) / 2;
+  const oy = (S - dh) / 2;
   ctx.clearRect(0, 0, S, S);
   ctx.fillStyle = "rgba(8,12,24,0.85)";
-  ctx.fillRect(0, 0, S, S);
+  ctx.fillRect(ox, oy, dw, dh);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(cellCanvas, 0, 0, S, S);
+  ctx.drawImage(cellCanvas, ox, oy, dw, dh);
   ctx.imageSmoothingEnabled = true;
 
   // 가중치 존
@@ -74,14 +80,14 @@ function drawMinimap(
     ctx.strokeStyle = "rgba(255,205,60,0.7)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc((z.x + 0.5) * px, (z.y + 0.5) * px, z.radius * px, 0, Math.PI * 2);
+    ctx.arc(ox + (z.x + 0.5) * px, oy + (z.y + 0.5) * px, z.radius * px, 0, Math.PI * 2);
     ctx.stroke();
   }
   // 플레이어 점
   for (const p of engine.players) {
     if (!p.alive) continue;
-    const x = (p.cx + 0.5) * px;
-    const y = (p.cy + 0.5) * px;
+    const x = ox + (p.cx + 0.5) * px;
+    const y = oy + (p.cy + 0.5) * px;
     ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(x, y, p.kind === "human" ? 4 : 3, 0, Math.PI * 2);
@@ -188,10 +194,10 @@ export default function GameCanvas({
 
     // 미니맵 준비 (1px = 1셀 오프스크린 → 확대)
     const miniCell = document.createElement("canvas");
-    miniCell.width = engine.N;
-    miniCell.height = engine.N;
+    miniCell.width = engine.W;
+    miniCell.height = engine.H;
     const miniCellCtx = miniCell.getContext("2d")!;
-    const miniData = miniCellCtx.createImageData(engine.N, engine.N);
+    const miniData = miniCellCtx.createImageData(engine.W, engine.H);
     const playerRGB = engine.players.map((p) => {
       const n = parseInt(p.color.slice(1), 16);
       return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;

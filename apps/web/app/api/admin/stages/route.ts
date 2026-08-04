@@ -12,8 +12,9 @@ function validateStage(body: Partial<StageDef>): string | null {
   if (![1, 2, 3].includes(Number(body.botTier))) return "botTier: 1~3";
   const bc = Number(body.botCount);
   if (!(bc >= 1 && bc <= 6)) return "botCount: 1~6";
-  const ms = Number(body.mapSize);
-  if (!(ms >= 40 && ms <= 200)) return "mapSize: 40~200";
+  if (!["small", "medium", "large"].includes(String(body.fieldSize))) {
+    return "fieldSize: small | medium | large";
+  }
   if (!body.clearCondition || !["areaPercent", "surviveTime"].includes(body.clearCondition.type)) {
     return "clearCondition.type: areaPercent | surviveTime";
   }
@@ -32,7 +33,7 @@ function stageDocData(body: StageDef) {
     description: { ko: body.description?.ko ?? "", en: body.description?.en ?? "" },
     botTier: Number(body.botTier),
     botCount: Number(body.botCount),
-    mapSize: Number(body.mapSize),
+    fieldSize: body.fieldSize,
     clearCondition: {
       type: body.clearCondition.type,
       value: Number(body.clearCondition.value),

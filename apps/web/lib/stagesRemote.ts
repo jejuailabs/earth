@@ -13,7 +13,9 @@ function toStageDef(raw: Record<string, unknown>): StageDef {
     description: d.description ?? { ko: "" },
     botTier: ([1, 2, 3].includes(Number(d.botTier)) ? Number(d.botTier) : 1) as 1 | 2 | 3,
     botCount: Math.max(1, Math.min(6, Number(d.botCount ?? 2))),
-    mapSize: Math.max(40, Math.min(200, Number(d.mapSize ?? 100))),
+    fieldSize: ["small", "medium", "large"].includes(String(d.fieldSize))
+      ? (d.fieldSize as StageDef["fieldSize"])
+      : "medium",
     clearCondition:
       d.clearCondition?.type === "surviveTime"
         ? { type: "surviveTime", value: Number(d.clearCondition.value ?? 120) }

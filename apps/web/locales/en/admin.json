@@ -47,7 +47,7 @@
       "descEn": "Description (en)",
       "botTier": "Bot tier",
       "botCount": "Bot count",
-      "mapSize": "Map size",
+      "fieldSize": "Field size",
       "clearType": "Clear condition",
       "clearValue": "Condition value",
       "timeLimitSec": "Time limit (s)",
@@ -56,6 +56,11 @@
       "backgroundImage": "Background image (approved only)",
       "noImage": "(use procedural theme background)",
       "isActive": "Active"
+    },
+    "field": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
     }
   },
   "images": {
@@ -72,9 +77,19 @@
     "empty": "No images yet. Start by generating one.",
     "statusPending": "Pending",
     "statusApproved": "Approved",
-    "statusRejected": "Rejected"
+    "statusRejected": "Rejected",
+    "upload": "Upload image",
+    "uploading": "Uploading…"
   },
-  "shop": { "wip": "Shop item management ships with the shop system (step 10)" },
-  "logs": { "empty": "No actions logged", "action": "Action", "target": "Target", "admin": "Admin", "time": "Time" },
+  "shop": {
+    "wip": "Shop item management ships with the shop system (step 10)"
+  },
+  "logs": {
+    "empty": "No actions logged",
+    "action": "Action",
+    "target": "Target",
+    "admin": "Admin",
+    "time": "Time"
+  },
   "error": "Error: {{message}}"
 }

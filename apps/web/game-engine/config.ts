@@ -3,7 +3,7 @@
 
 export const GAME_CONFIG = {
   // 그리드 (docs/04 §1)
-  mapSize: 100, // N×N 셀
+  // 격자 크기는 스테이지의 fieldSize(소/중/대) + 배경이미지 비율로 결정된다 (types.ts)
   cellPx: 10, // 렌더링 시 셀 1개의 픽셀 크기 (100셀 × 10px = 1000px 캔버스)
 
   // 로직 틱 (docs/04 §9 — 권장 20~30Hz)

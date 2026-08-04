@@ -17,22 +17,26 @@ function PlayInner() {
   const mode: ControlMode = params.get("mode") === "manual" ? "manual" : "classic";
   const [def, setDef] = useState<StageDef | null>(null);
   const [bgUrl, setBgUrl] = useState<string | undefined>(undefined);
+  const [aspect, setAspect] = useState(1);
   const [run, setRun] = useState(0);
 
   useEffect(() => {
     (async () => {
       const d = await fetchStageDef(stageId);
-      // 기본: 번들된 샘플 이미지. 승인된 배경이미지가 연결돼 있으면 그것으로 교체
-      // (이미지에 태깅된 가중치존이 있으면 스테이지 존 대체 — docs/04 §5)
+      // 기본: 번들된 샘플 이미지(정사각형). 승인된 배경이미지가 연결돼 있으면 그것으로 교체하고
+      // 게임장 격자도 그 이미지 비율을 따른다 (이미지에 태깅된 존이 있으면 스테이지 존 대체)
       let url = `/samples/${d.theme}.png`;
+      let ratio = 1;
       if (d.backgroundImageId) {
         const img = await fetchApprovedImage(d.backgroundImageId);
         if (img) {
           url = img.storageUrl;
+          ratio = img.aspect;
           if (img.valueZones.length > 0) d.valueZones = img.valueZones;
         }
       }
       setBgUrl(url);
+      setAspect(ratio);
       setDef(d);
     })();
   }, [stageId]);
@@ -42,7 +46,7 @@ function PlayInner() {
       {def ? (
         <GameCanvas
           key={`${run}-${i18n.language}`}
-          stage={localizeStage(def, i18n.language)}
+          stage={localizeStage(def, i18n.language, aspect)}
           mode={mode}
           bgUrl={bgUrl}
           onRestart={() => setRun((r) => r + 1)}

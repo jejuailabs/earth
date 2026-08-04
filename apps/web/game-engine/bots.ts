@@ -112,8 +112,8 @@ function keepOrTurn(p: PlayerState, valid: Vec[], brain: BotBrain): Vec {
 }
 
 function greedyToward(engine: GameEngine, p: PlayerState, targetIdx: number, valid: Vec[]): Vec {
-  const tx = targetIdx % engine.N;
-  const ty = (targetIdx / engine.N) | 0;
+  const tx = targetIdx % engine.W;
+  const ty = (targetIdx / engine.W) | 0;
   let best = valid[0];
   let bestDist = Infinity;
   for (const d of valid) {
@@ -128,7 +128,7 @@ function greedyToward(engine: GameEngine, p: PlayerState, targetIdx: number, val
 
 function nearestOwnCell(engine: GameEngine, p: PlayerState): number {
   // 링 탐색으로 가장 가까운 자기 영역 셀 검색 (반경 제한)
-  for (let r = 1; r < engine.N; r++) {
+  for (let r = 1; r < engine.W + engine.H; r++) {
     for (let dy = -r; dy <= r; dy++) {
       const dx = r - Math.abs(dy);
       for (const sx of dx === 0 ? [0] : [-dx, dx]) {
@@ -151,8 +151,8 @@ function enemyNearMyTrail(engine: GameEngine, p: PlayerState): boolean {
     if (q.id === p.id || !q.alive) continue;
     for (let k = 0; k < p.trail.length; k += step) {
       const i = p.trail[k];
-      const tx = i % engine.N;
-      const ty = (i / engine.N) | 0;
+      const tx = i % engine.W;
+      const ty = (i / engine.W) | 0;
       if (Math.abs(q.cx - tx) + Math.abs(q.cy - ty) <= R) return true;
     }
   }
@@ -169,8 +169,8 @@ function pickChaseTarget(engine: GameEngine, p: PlayerState): number {
 
     // Lv.3: 확장 경로 예측 — 상대 진행 방향 앞쪽을 노린다 (협공 시 차단 효과)
     if (p.botTier >= 3 && (q.dir.x !== 0 || q.dir.y !== 0)) {
-      const lx = clamp(q.cx + q.dir.x * C.bot.lookaheadCells, 0, engine.N - 1);
-      const ly = clamp(q.cy + q.dir.y * C.bot.lookaheadCells, 0, engine.N - 1);
+      const lx = clamp(q.cx + q.dir.x * C.bot.lookaheadCells, 0, engine.W - 1);
+      const ly = clamp(q.cy + q.dir.y * C.bot.lookaheadCells, 0, engine.H - 1);
       const d = Math.abs(lx - p.cx) + Math.abs(ly - p.cy);
       if (d + C.bot.chaseMargin < q.trail.length + headDist && d < bestScore) {
         bestScore = d;
@@ -182,8 +182,8 @@ function pickChaseTarget(engine: GameEngine, p: PlayerState): number {
     // Lv.2: 궤적에서 가장 가까운 셀 추적 — 상대 귀환 소요(≈궤적 길이)보다
     // 내가 먼저 도달 가능할 때만 추격 성립
     for (const i of q.trail) {
-      const tx = i % engine.N;
-      const ty = (i / engine.N) | 0;
+      const tx = i % engine.W;
+      const ty = (i / engine.W) | 0;
       const d = Math.abs(tx - p.cx) + Math.abs(ty - p.cy);
       if (d + C.bot.chaseMargin < q.trail.length && d < bestScore) {
         bestScore = d;

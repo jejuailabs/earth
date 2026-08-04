@@ -47,7 +47,7 @@
       "descEn": "설명 (en)",
       "botTier": "봇 티어",
       "botCount": "봇 수",
-      "mapSize": "맵 크기",
+      "fieldSize": "게임장 크기",
       "clearType": "클리어 조건",
       "clearValue": "조건 값",
       "timeLimitSec": "제한시간(초)",
@@ -56,6 +56,11 @@
       "backgroundImage": "배경이미지 (승인된 것만)",
       "noImage": "(테마 절차 생성 배경 사용)",
       "isActive": "활성화"
+    },
+    "field": {
+      "small": "소",
+      "medium": "중",
+      "large": "대"
     }
   },
   "images": {
@@ -72,9 +77,19 @@
     "empty": "이미지가 없습니다. AI 생성으로 시작하세요.",
     "statusPending": "검수 대기",
     "statusApproved": "승인됨",
-    "statusRejected": "반려됨"
+    "statusRejected": "반려됨",
+    "upload": "이미지 업로드",
+    "uploading": "업로드 중…"
   },
-  "shop": { "wip": "상점 아이템 관리는 상점 시스템(10단계) 구현 시 함께 추가됩니다" },
-  "logs": { "empty": "기록된 액션이 없습니다", "action": "액션", "target": "대상", "admin": "관리자", "time": "시각" },
+  "shop": {
+    "wip": "상점 아이템 관리는 상점 시스템(10단계) 구현 시 함께 추가됩니다"
+  },
+  "logs": {
+    "empty": "기록된 액션이 없습니다",
+    "action": "액션",
+    "target": "대상",
+    "admin": "관리자",
+    "time": "시각"
+  },
   "error": "오류: {{message}}"
 }

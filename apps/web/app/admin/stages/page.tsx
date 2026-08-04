@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { adminFetch } from "@/lib/adminApi";
 import { pickText } from "@/lib/stages";
-import type { StageDef } from "@/game-engine/types";
+import { FIELD_BASE, type StageDef } from "@/game-engine/types";
 
 const EMPTY: StageDef = {
   stageId: "",
@@ -16,7 +16,7 @@ const EMPTY: StageDef = {
   description: { ko: "", en: "" },
   botTier: 1,
   botCount: 2,
-  mapSize: 100,
+  fieldSize: "medium",
   clearCondition: { type: "areaPercent", value: 30 },
   timeLimitSec: 180,
   theme: "earth",
@@ -215,15 +215,20 @@ export default function AdminStages() {
             />
           </label>
           <label className="text-sm">
-            <span className="text-zinc-400">{f.mapSize}</span>
-            <input
-              type="number"
-              min={40}
-              max={200}
-              value={editing.mapSize}
-              onChange={(e) => setEditing({ ...editing, mapSize: Number(e.target.value) })}
+            <span className="text-zinc-400">{f.fieldSize}</span>
+            <select
+              value={editing.fieldSize}
+              onChange={(e) =>
+                setEditing({ ...editing, fieldSize: e.target.value as StageDef["fieldSize"] })
+              }
               className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5"
-            />
+            >
+              {(["small", "medium", "large"] as const).map((s) => (
+                <option key={s} value={s}>
+                  {t(`stages.field.${s}`)} ({FIELD_BASE[s]}×{FIELD_BASE[s]})
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-sm">
             <span className="text-zinc-400">{f.theme}</span>
@@ -340,6 +345,7 @@ export default function AdminStages() {
               <th className="py-2 pr-3">ID</th>
               <th className="py-2 pr-3">{f.nameKo}</th>
               <th className="py-2 pr-3">Bot</th>
+              <th className="py-2 pr-3">{f.fieldSize}</th>
               <th className="py-2 pr-3">Clear</th>
               <th className="py-2 pr-3">{f.isActive}</th>
               <th className="py-2">Actions</th>
@@ -354,6 +360,7 @@ export default function AdminStages() {
                 <td className="py-2 pr-3">
                   Lv.{s.botTier} ×{s.botCount}
                 </td>
+                <td className="py-2 pr-3 text-zinc-400">{t(`stages.field.${s.fieldSize}`)}</td>
                 <td className="py-2 pr-3 text-zinc-400">
                   {s.clearCondition.type === "areaPercent"
                     ? `${s.clearCondition.value}%`

@@ -38,7 +38,7 @@ export async function recordMatch(
     durationSec: result.durationSec,
     participants: engine.players.map((p) => ({
       uid: p.kind === "human" ? uid : `bot:${p.name}`,
-      finalAreaPercent: (p.areaCells / (engine.N * engine.N)) * 100,
+      finalAreaPercent: (p.areaCells / (engine.W * engine.H)) * 100,
       kills: p.kills,
       rank: ranked.indexOf(p) + 1,
       expGained: p.kind === "human" ? gains.exp : 0,

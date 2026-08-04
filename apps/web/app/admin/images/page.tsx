@@ -12,6 +12,8 @@ interface AdminImage {
   storageUrl: string;
   theme: string;
   prompt: string;
+  width: number;
+  height: number;
   status: "pending" | "approved" | "rejected";
   valueZones: ValueZone[];
   generatedBy: string;
@@ -27,6 +29,7 @@ export default function AdminImages() {
   const [theme, setTheme] = useState(THEMES[0]);
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // imageId → 편집 중인 존 목록 (저장 전 로컬 상태)
   const [zoneEdits, setZoneEdits] = useState<Record<string, ValueZone[]>>({});
@@ -61,6 +64,35 @@ export default function AdminImages() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // 업로드: 브라우저에서 해상도를 읽어 base64와 함께 전송 (게임장 비율 산출용)
+  const upload = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("파일 읽기 실패"));
+        fr.readAsDataURL(file);
+      });
+      const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+        const im = new window.Image();
+        im.onload = () => resolve({ w: im.naturalWidth, h: im.naturalHeight });
+        im.onerror = () => reject(new Error("이미지 해석 실패"));
+        im.src = dataUrl;
+      });
+      await adminFetch("/api/admin/images/upload", {
+        method: "POST",
+        body: JSON.stringify({ dataUrl, theme, width: dims.w, height: dims.h }),
+      });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -123,6 +155,23 @@ export default function AdminImages() {
         >
           {generating ? t("images.generating") : t("images.generate")}
         </button>
+        <label
+          className={`cursor-pointer rounded-lg bg-zinc-800 px-4 py-2 text-sm font-semibold hover:bg-zinc-700 ${
+            uploading ? "pointer-events-none opacity-50" : ""
+          }`}
+        >
+          {uploading ? t("images.uploading") : t("images.upload")}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = ""; // 같은 파일 재선택 허용
+              if (file) upload(file);
+            }}
+          />
+        </label>
       </div>
       {error && <p className="mb-3 text-sm text-red-400">{t("error", { message: error })}</p>}
 
@@ -181,7 +230,10 @@ function ImageCard({
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="mb-2 flex items-center justify-between text-sm">
-        <span className="font-mono text-xs text-zinc-500">{img.theme}</span>
+        <span className="font-mono text-xs text-zinc-500">
+          {img.theme}
+          {img.width > 0 && ` · ${img.width}×${img.height}`}
+        </span>
         <span className={`rounded px-2 py-0.5 text-xs ${statusColor}`}>
           {t(`images.status${img.status[0].toUpperCase()}${img.status.slice(1)}`)}
         </span>

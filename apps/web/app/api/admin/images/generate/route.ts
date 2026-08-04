@@ -64,6 +64,8 @@ export const POST = adminRoute(async (req, decoded) => {
     imageId,
     storageUrl,
     theme,
+    width: 1024, // 생성 요청 size와 동일 — 게임장 비율 산출에 쓰인다
+    height: 1024,
     prompt: finalPrompt, // 재생성/추적용 (docs/08 §5)
     status: "pending",
     valueZones: [],

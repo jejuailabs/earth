@@ -23,13 +23,14 @@ export class Renderer {
     private engine: GameEngine,
     bgUrl?: string,
   ) {
-    const N = engine.N;
+    const GW = engine.W;
+    const GH = engine.H;
     const px = C.cellPx;
-    canvas.width = N * px;
-    canvas.height = N * px;
+    canvas.width = GW * px;
+    canvas.height = GH * px;
     this.ctx = canvas.getContext("2d")!;
 
-    this.bg = makeBackground(engine.stage.theme, N * px);
+    this.bg = makeBackground(engine.stage.theme, GW * px, GH * px);
     if (bgUrl) {
       const img = new Image();
       img.onload = () => {
@@ -39,36 +40,38 @@ export class Renderer {
     }
 
     this.fogCanvas = document.createElement("canvas");
-    this.fogCanvas.width = N;
-    this.fogCanvas.height = N;
+    this.fogCanvas.width = GW;
+    this.fogCanvas.height = GH;
     this.fogCtx = this.fogCanvas.getContext("2d")!;
-    this.fogData = this.fogCtx.createImageData(N, N);
+    this.fogData = this.fogCtx.createImageData(GW, GH);
 
     this.terrCanvas = document.createElement("canvas");
-    this.terrCanvas.width = N;
-    this.terrCanvas.height = N;
+    this.terrCanvas.width = GW;
+    this.terrCanvas.height = GH;
     this.terrCtx = this.terrCanvas.getContext("2d")!;
-    this.terrData = this.terrCtx.createImageData(N, N);
+    this.terrData = this.terrCtx.createImageData(GW, GH);
 
-    this.vignette = makeVignette(N * px);
+    this.vignette = makeVignette(GW * px, GH * px);
     this.playerRGB = engine.players.map((p) => hexToRgb(p.color));
   }
 
   draw(nowMs = performance.now()) {
     const { ctx, engine } = this;
-    const N = engine.N;
+    const GW = engine.W;
+    const GH = engine.H;
     const px = C.cellPx;
-    const W = N * px;
+    const W = GW * px;
+    const H = GH * px;
     ctx.imageSmoothingEnabled = true;
 
     // 1. 배경
-    if (this.bgImage) ctx.drawImage(this.bgImage, 0, 0, W, W);
+    if (this.bgImage) ctx.drawImage(this.bgImage, 0, 0, W, H);
     else ctx.drawImage(this.bg, 0, 0);
 
     // 2. 안개 (미리빌 셀) — 셀마다 미세한 명암 변화로 질감 부여
     const fog = this.fogData.data;
     const revealed = engine.revealed;
-    for (let i = 0; i < N * N; i++) {
+    for (let i = 0; i < GW * GH; i++) {
       const o = i * 4;
       if (revealed[i]) {
         fog[o + 3] = 0;
@@ -82,12 +85,12 @@ export class Renderer {
     }
     this.fogCtx.putImageData(this.fogData, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.fogCanvas, 0, 0, W, W);
+    ctx.drawImage(this.fogCanvas, 0, 0, W, H);
 
     // 3. 영토 틴트
     const terr = this.terrData.data;
     const owner = engine.owner;
-    for (let i = 0; i < N * N; i++) {
+    for (let i = 0; i < GW * GH; i++) {
       const o = i * 4;
       const id = owner[i];
       if (id === NONE) {
@@ -101,7 +104,7 @@ export class Renderer {
       }
     }
     this.terrCtx.putImageData(this.terrData, 0, 0);
-    ctx.drawImage(this.terrCanvas, 0, 0, W, W);
+    ctx.drawImage(this.terrCanvas, 0, 0, W, H);
     ctx.imageSmoothingEnabled = true;
 
     // 3-1. 영토 입체 경계 — 상단/좌측 밝게, 하단/우측 어둡게 (돌출 플레이트 느낌)
@@ -157,8 +160,8 @@ export class Renderer {
       ctx.beginPath();
       for (let k = 0; k < p.trail.length; k++) {
         const i = p.trail[k];
-        const x = ((i % N) + 0.5) * px;
-        const y = (((i / N) | 0) + 0.5) * px;
+        const x = ((i % GW) + 0.5) * px;
+        const y = (((i / GW) | 0) + 0.5) * px;
         if (k === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -180,20 +183,21 @@ export class Renderer {
 
   private drawTerritoryEdges() {
     const { ctx, engine } = this;
-    const N = engine.N;
+    const GW = engine.W;
+    const GH = engine.H;
     const px = C.cellPx;
     const owner = engine.owner;
 
     ctx.lineWidth = 2;
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        const id = owner[y * N + x];
+    for (let y = 0; y < GH; y++) {
+      for (let x = 0; x < GW; x++) {
+        const id = owner[y * GW + x];
         if (id === NONE) continue;
         const [r, g, b] = this.playerRGB[id];
         const X = x * px;
         const Y = y * px;
         // 상단 경계 → 하이라이트
-        if (y === 0 || owner[(y - 1) * N + x] !== id) {
+        if (y === 0 || owner[(y - 1) * GW + x] !== id) {
           ctx.strokeStyle = `rgba(${Math.min(255, r + 90)}, ${Math.min(255, g + 90)}, ${Math.min(255, b + 90)}, 0.9)`;
           ctx.beginPath();
           ctx.moveTo(X, Y + 1);
@@ -201,7 +205,7 @@ export class Renderer {
           ctx.stroke();
         }
         // 하단 경계 → 섀도
-        if (y === N - 1 || owner[(y + 1) * N + x] !== id) {
+        if (y === GH - 1 || owner[(y + 1) * GW + x] !== id) {
           ctx.strokeStyle = `rgba(${r >> 2}, ${g >> 2}, ${b >> 2}, 0.85)`;
           ctx.beginPath();
           ctx.moveTo(X, Y + px - 1);
@@ -209,7 +213,7 @@ export class Renderer {
           ctx.stroke();
         }
         // 좌측 경계
-        if (x === 0 || owner[y * N + x - 1] !== id) {
+        if (x === 0 || owner[y * GW + x - 1] !== id) {
           ctx.strokeStyle = `rgba(${Math.min(255, r + 60)}, ${Math.min(255, g + 60)}, ${Math.min(255, b + 60)}, 0.7)`;
           ctx.beginPath();
           ctx.moveTo(X + 1, Y);
@@ -217,7 +221,7 @@ export class Renderer {
           ctx.stroke();
         }
         // 우측 경계
-        if (x === N - 1 || owner[y * N + x + 1] !== id) {
+        if (x === GW - 1 || owner[y * GW + x + 1] !== id) {
           ctx.strokeStyle = `rgba(${r >> 2}, ${g >> 2}, ${b >> 2}, 0.7)`;
           ctx.beginPath();
           ctx.moveTo(X + px - 1, Y);
@@ -320,23 +324,17 @@ function roundRect(
   ctx.closePath();
 }
 
-function makeVignette(size: number): HTMLCanvasElement {
+function makeVignette(w: number, h: number): HTMLCanvasElement {
   const cv = document.createElement("canvas");
-  cv.width = size;
-  cv.height = size;
+  cv.width = w;
+  cv.height = h;
+  const size = Math.max(w, h);
   const ctx = cv.getContext("2d")!;
-  const g = ctx.createRadialGradient(
-    size / 2,
-    size / 2,
-    size * 0.45,
-    size / 2,
-    size / 2,
-    size * 0.75,
-  );
+  const g = ctx.createRadialGradient(w / 2, h / 2, size * 0.45, w / 2, h / 2, size * 0.75);
   g.addColorStop(0, "rgba(0,0,0,0)");
   g.addColorStop(1, "rgba(0,0,0,0.42)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, w, h);
   return cv;
 }
 
@@ -357,10 +355,11 @@ function darken(hex: string, amt: number): string {
 
 // ── 절차적 배경 (승인 이미지 없을 때의 폴백) ─────────────
 
-function makeBackground(theme: "earth" | "space", size: number): HTMLCanvasElement {
+function makeBackground(theme: "earth" | "space", w: number, h: number): HTMLCanvasElement {
   const cv = document.createElement("canvas");
-  cv.width = size;
-  cv.height = size;
+  cv.width = w;
+  cv.height = h;
+  const size = Math.max(w, h);
   const ctx = cv.getContext("2d")!;
   const rand = mulberry32(theme === "earth" ? 12345 : 99999);
 
@@ -378,21 +377,21 @@ function makeBackground(theme: "earth" | "space", size: number): HTMLCanvasEleme
     sea.addColorStop(0.5, "#1e5f96");
     sea.addColorStop(1, "#0d3358");
     ctx.fillStyle = sea;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, w, h);
     // 물결 하이라이트
     ctx.strokeStyle = "rgba(255,255,255,0.05)";
     ctx.lineWidth = 2;
     for (let w = 0; w < 30; w++) {
       ctx.beginPath();
-      const yy = rand() * size;
-      ctx.moveTo(rand() * size, yy);
-      ctx.quadraticCurveTo(rand() * size, yy + 20, rand() * size, yy);
+      const yy = rand() * h;
+      ctx.moveTo(rand() * w, yy);
+      ctx.quadraticCurveTo(rand() * w, yy + 20, rand() * w, yy);
       ctx.stroke();
     }
     // 대륙: 그림자 → 본체 → 하이라이트 3중 블롭 (입체감)
     for (let c = 0; c < 9; c++) {
-      const cx = rand() * size;
-      const cy = rand() * size;
+      const cx = rand() * w;
+      const cy = rand() * h;
       const baseR = size * (0.06 + rand() * 0.1);
       ctx.fillStyle = "rgba(0,20,40,0.35)";
       blob(ctx, cx + size * 0.008, cy + size * 0.012, baseR, rand);
@@ -406,19 +405,19 @@ function makeBackground(theme: "earth" | "space", size: number): HTMLCanvasEleme
     }
     // 빙하
     ctx.fillStyle = "rgba(238, 246, 255, 0.92)";
-    blob(ctx, size * 0.5, -size * 0.02, size * 0.14, rand);
-    blob(ctx, size * 0.5, size * 1.02, size * 0.14, rand);
+    blob(ctx, w * 0.5, -h * 0.02, size * 0.14, rand);
+    blob(ctx, w * 0.5, h * 1.02, size * 0.14, rand);
     // 구름
     for (let c = 0; c < 14; c++) {
       ctx.fillStyle = `rgba(255,255,255,${0.1 + rand() * 0.12})`;
-      blob(ctx, rand() * size, rand() * size, size * (0.02 + rand() * 0.045), rand);
+      blob(ctx, rand() * w, rand() * h, size * (0.02 + rand() * 0.045), rand);
     }
   } else {
     ctx.fillStyle = "#080b1c";
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, w, h);
     for (let c = 0; c < 5; c++) {
-      const gx = rand() * size;
-      const gy = rand() * size;
+      const gx = rand() * w;
+      const gy = rand() * h;
       const gr = size * (0.15 + rand() * 0.3);
       const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
       const hue = 210 + rand() * 140;
@@ -426,13 +425,13 @@ function makeBackground(theme: "earth" | "space", size: number): HTMLCanvasEleme
       g.addColorStop(0.6, `hsla(${hue}, 70%, 35%, 0.18)`);
       g.addColorStop(1, "transparent");
       ctx.fillStyle = g;
-      ctx.fillRect(0, 0, size, size);
+      ctx.fillRect(0, 0, w, h);
     }
     for (let s = 0; s < 700; s++) {
       const a = 0.25 + rand() * 0.75;
       ctx.fillStyle = `rgba(255,255,255,${a})`;
       const rr = rand() < 0.92 ? 1 : 2;
-      ctx.fillRect(rand() * size, rand() * size, rr, rr);
+      ctx.fillRect(rand() * w, rand() * h, rr, rr);
     }
     // 행성 + 고리
     const px2 = size * 0.72;

@@ -43,7 +43,8 @@ const BOT_NAMES = ["레드", "오렌지", "퍼플", "틸", "옐로", "핑크"];
 const HUMAN_COLOR = "#3b82f6";
 
 export class GameEngine {
-  readonly N: number;
+  readonly W: number; // 격자 가로 셀 수 (배경이미지 비율에 맞춰 결정됨)
+  readonly H: number; // 격자 세로 셀 수
   readonly stage: StageConfig;
   readonly controlMode: ControlMode;
 
@@ -71,8 +72,9 @@ export class GameEngine {
   constructor(stage: StageConfig, controlMode: ControlMode, seed = Math.random() * 0xffffffff) {
     this.stage = stage;
     this.controlMode = controlMode;
-    this.N = stage.mapSize;
-    const total = this.N * this.N;
+    this.W = stage.mapWidth;
+    this.H = stage.mapHeight;
+    const total = this.W * this.H;
     this.owner = new Int16Array(total).fill(NONE);
     this.trailOwner = new Int16Array(total).fill(NONE);
     this.revealed = new Uint8Array(total);
@@ -88,11 +90,11 @@ export class GameEngine {
   }
 
   idx(x: number, y: number) {
-    return y * this.N + x;
+    return y * this.W + x;
   }
 
   inBounds(x: number, y: number) {
-    return x >= 0 && y >= 0 && x < this.N && y < this.N;
+    return x >= 0 && y >= 0 && x < this.W && y < this.H;
   }
 
   get human() {
@@ -209,7 +211,7 @@ export class GameEngine {
   // 그리디 이동은 자기 궤적에 막히면 제자리를 맴돌아 궤적만 길어지다 죽으므로, 귀환은 이 탐색을 쓴다.
   // 경로가 없거나 탐색 상한을 넘으면 null.
   stepTowardOwnTerritory(p: PlayerState, maxCells = 3000): Vec | null {
-    const N = this.N;
+    const W = this.W;
     const stamp = ++this.visitGen;
     const visited = this.visited;
     const queue = this.bfsQueue;
@@ -236,8 +238,8 @@ export class GameEngine {
     let expanded = 0;
     while (head < tail && expanded++ < maxCells) {
       const i = queue[head++];
-      const x = i % N;
-      const y = (i / N) | 0;
+      const x = i % W;
+      const y = (i / W) | 0;
       const k = seedDir[i];
       for (const d of DIRS) {
         const nx = x + d.x;
@@ -267,14 +269,14 @@ export class GameEngine {
     // 폐곡선(궤적 + 자기 영토 경계)의 내부는 반드시 "궤적 ∪ p 영토"를 감싸는
     // 사각형 안에 있다. 그 바깥은 곡선 바깥이 확정이므로 맵 전체를 훑을 필요가 없다.
     // 맵이 커져도 비용이 플레이어 영토 크기에만 비례하도록 하는 핵심 최적화.
-    const N = this.N;
+    const W = this.W;
     const x0 = Math.max(0, p.bMinX - 1);
     const y0 = Math.max(0, p.bMinY - 1);
-    const x1 = Math.min(N - 1, p.bMaxX + 1);
-    const y1 = Math.min(N - 1, p.bMaxY + 1);
+    const x1 = Math.min(W - 1, p.bMaxX + 1);
+    const y1 = Math.min(this.H - 1, p.bMaxY + 1);
     if (x1 < x0 || y1 < y0) return; // 영토 없음
 
-    // visited를 매번 0으로 채우지 않도록 세대 스탬프를 쓴다 (O(N²) 제거)
+    // visited를 매번 0으로 채우지 않도록 세대 스탬프를 쓴다 (맵 전체 초기화 제거)
     const stamp = ++this.visitGen;
     const visited = this.visited;
     const queue = this.bfsQueue;
@@ -298,12 +300,12 @@ export class GameEngine {
     }
     while (head < tail) {
       const i = queue[head++];
-      const x = i % N;
-      const y = (i / N) | 0;
+      const x = i % W;
+      const y = (i / W) | 0;
       if (x > x0) push(i - 1);
       if (x < x1) push(i + 1);
-      if (y > y0) push(i - N);
-      if (y < y1) push(i + N);
+      if (y > y0) push(i - W);
+      if (y < y1) push(i + W);
     }
     // 사각형 안에서 바깥과 이어지지 않은 (p 소유가 아닌) 셀 = 폐곡선 내부
     for (let y = y0; y <= y1; y++) {
@@ -325,8 +327,8 @@ export class GameEngine {
       p.areaCells++;
       // 영토 바운딩박스 증분 갱신 (점령 탐색 범위 한정용). 셀을 잃어도 줄이지 않고
       // 넓은 쪽으로 남겨둔다 — 탐색 범위가 조금 넉넉해질 뿐 결과는 같다.
-      const bx = i % this.N;
-      const by = (i / this.N) | 0;
+      const bx = i % this.W;
+      const by = (i / this.W) | 0;
       if (bx < p.bMinX) p.bMinX = bx;
       if (bx > p.bMaxX) p.bMaxX = bx;
       if (by < p.bMinY) p.bMinY = by;
@@ -357,11 +359,11 @@ export class GameEngine {
       for (let i = 0; i < this.owner.length; i++) if (this.owner[i] === p.id) owned.push(i);
       if (owned.length > 0) {
         const center = owned[(this.rng() * owned.length) | 0];
-        const ccx = center % this.N;
-        const ccy = (center / this.N) | 0;
+        const ccx = center % this.W;
+        const ccy = (center / this.W) | 0;
         owned.sort((a, b) => {
-          const da = Math.abs((a % this.N) - ccx) + Math.abs(((a / this.N) | 0) - ccy);
-          const db = Math.abs((b % this.N) - ccx) + Math.abs(((b / this.N) | 0) - ccy);
+          const da = Math.abs((a % this.W) - ccx) + Math.abs(((a / this.W) | 0) - ccy);
+          const db = Math.abs((b % this.W) - ccx) + Math.abs(((b / this.W) | 0) - ccy);
           return da - db;
         });
         const keep = Math.floor(owned.length * C.respawnKeepRatio);
@@ -375,8 +377,8 @@ export class GameEngine {
       p.respawnAt = this.timeMs + C.botRespawnDelaySec * 1000;
       for (let i = 0; i < this.owner.length; i++) if (this.owner[i] === p.id) this.setOwner(i, NONE);
       // 영토를 전부 잃었으므로 바운딩박스도 비운다
-      p.bMinX = this.N;
-      p.bMinY = this.N;
+      p.bMinX = this.W;
+      p.bMinY = this.H;
       p.bMaxX = -1;
       p.bMaxY = -1;
       p.respawnCell = NONE;
@@ -385,8 +387,8 @@ export class GameEngine {
 
   private respawn(p: PlayerState) {
     if (p.respawnCell !== NONE && this.owner[p.respawnCell] === p.id) {
-      p.cx = p.respawnCell % this.N;
-      p.cy = (p.respawnCell / this.N) | 0;
+      p.cx = p.respawnCell % this.W;
+      p.cy = (p.respawnCell / this.W) | 0;
     } else if (!this.placeNewSpawn(p)) {
       // 자리를 못 찾으면 잠시 후 재시도
       p.respawnAt = this.timeMs + 1000;
@@ -404,13 +406,14 @@ export class GameEngine {
   // ── 스폰 ──────────────────────────────────────────────
 
   private placeNewSpawn(p: PlayerState): boolean {
-    const N = this.N;
-    const m = C.spawnEdgeMargin;
     const clear = C.spawnClearance;
     const half = (clear / 2) | 0;
+    // 좁은 쪽 변에서도 여백이 확보되도록 마진을 제한한다 (세로로 긴 맵 대응)
+    const mx = Math.min(C.spawnEdgeMargin, Math.max(1, ((this.W - clear) / 2) | 0));
+    const my = Math.min(C.spawnEdgeMargin, Math.max(1, ((this.H - clear) / 2) | 0));
     for (let attempt = 0; attempt < 60; attempt++) {
-      const cx = m + ((this.rng() * (N - 2 * m)) | 0);
-      const cy = m + ((this.rng() * (N - 2 * m)) | 0);
+      const cx = mx + ((this.rng() * Math.max(1, this.W - 2 * mx)) | 0);
+      const cy = my + ((this.rng() * Math.max(1, this.H - 2 * my)) | 0);
       let ok = true;
       for (let y = cy - half; y <= cy + half && ok; y++) {
         for (let x = cx - half; x <= cx + half && ok; x++) {
@@ -498,8 +501,8 @@ export class GameEngine {
       progress: 0,
       trail: [],
       areaCells: 0,
-      bMinX: this.N,
-      bMinY: this.N,
+      bMinX: this.W,
+      bMinY: this.H,
       bMaxX: -1,
       bMaxY: -1,
       kills: 0,
@@ -514,8 +517,8 @@ export class GameEngine {
   private buildZoneMultipliers() {
     for (const z of this.stage.valueZones) {
       const r2 = z.radius * z.radius;
-      for (let y = Math.max(0, z.y - z.radius); y <= Math.min(this.N - 1, z.y + z.radius); y++) {
-        for (let x = Math.max(0, z.x - z.radius); x <= Math.min(this.N - 1, z.x + z.radius); x++) {
+      for (let y = Math.max(0, z.y - z.radius); y <= Math.min(this.H - 1, z.y + z.radius); y++) {
+        for (let x = Math.max(0, z.x - z.radius); x <= Math.min(this.W - 1, z.x + z.radius); x++) {
           const dx = x - z.x;
           const dy = y - z.y;
           if (dx * dx + dy * dy <= r2) {
@@ -530,7 +533,7 @@ export class GameEngine {
   // ── 결과 판정 (docs/04 §8) ────────────────────────────
 
   humanAreaPercent() {
-    return (this.human.areaCells / (this.N * this.N)) * 100;
+    return (this.human.areaCells / (this.W * this.H)) * 100;
   }
 
   private checkResult() {

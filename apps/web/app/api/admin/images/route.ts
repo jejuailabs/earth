@@ -16,6 +16,8 @@ export const GET = adminRoute(async (req) => {
       storageUrl: i.storageUrl ?? "",
       theme: i.theme ?? "",
       prompt: i.prompt ?? "",
+      width: Number(i.width) || 0,
+      height: Number(i.height) || 0,
       status: i.status ?? "pending",
       valueZones: i.valueZones ?? [],
       generatedBy: i.generatedBy ?? "manual-upload",

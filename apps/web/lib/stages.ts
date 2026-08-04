@@ -1,7 +1,7 @@
 // 봇전 스테이지 기본 정의 — Firestore `stages` 컬렉션(docs/03 §2)이 비어 있을 때의 폴백이자
 // 어드민 패널의 시드 데이터. 콘텐츠 다국어는 { ko, en } 맵 (docs/07 §4).
 
-import type { LocalizedText, StageConfig, StageDef } from "@/game-engine/types";
+import { fieldDimensions, type LocalizedText, type StageConfig, type StageDef } from "@/game-engine/types";
 
 export const STAGE_DEFS: StageDef[] = [
   {
@@ -14,7 +14,7 @@ export const STAGE_DEFS: StageDef[] = [
     },
     botTier: 1,
     botCount: 2,
-    mapSize: 100,
+    fieldSize: "medium",
     clearCondition: { type: "areaPercent", value: 30 },
     timeLimitSec: 180,
     theme: "earth",
@@ -34,7 +34,7 @@ export const STAGE_DEFS: StageDef[] = [
     },
     botTier: 1,
     botCount: 4,
-    mapSize: 100,
+    fieldSize: "medium",
     clearCondition: { type: "areaPercent", value: 40 },
     timeLimitSec: 180,
     theme: "earth",
@@ -54,7 +54,7 @@ export const STAGE_DEFS: StageDef[] = [
     },
     botTier: 2,
     botCount: 3,
-    mapSize: 100,
+    fieldSize: "medium",
     clearCondition: { type: "areaPercent", value: 40 },
     timeLimitSec: 200,
     theme: "space",
@@ -74,7 +74,7 @@ export const STAGE_DEFS: StageDef[] = [
     },
     botTier: 2,
     botCount: 4,
-    mapSize: 100,
+    fieldSize: "medium",
     clearCondition: { type: "surviveTime", value: 120 },
     timeLimitSec: 120,
     theme: "space",
@@ -91,7 +91,7 @@ export const STAGE_DEFS: StageDef[] = [
     },
     botTier: 3,
     botCount: 4,
-    mapSize: 100,
+    fieldSize: "medium",
     clearCondition: { type: "areaPercent", value: 50 },
     timeLimitSec: 240,
     theme: "earth",
@@ -109,7 +109,22 @@ export function pickText(t: LocalizedText | undefined, locale: string): string {
   return (locale === "en" && t.en) || t.ko;
 }
 
-export function localizeStage(def: StageDef, locale: string): StageConfig {
+// 가중치 존 좌표는 100×100 기준(= 백분율)으로 저장하고, 실제 격자 크기에 맞춰 환산한다.
+// 그래야 게임장 크기(소/중/대)나 이미지 비율이 바뀌어도 같은 위치를 가리킨다.
+const ZONE_REF = 100;
+
+// aspect = 배경이미지 가로/세로. 없으면 정사각형.
+export function localizeStage(def: StageDef, locale: string, aspect = 1): StageConfig {
+  const { width, height } = fieldDimensions(def.fieldSize, aspect);
+  const sx = width / ZONE_REF;
+  const sy = height / ZONE_REF;
+  const sr = Math.sqrt(sx * sy); // 반경은 넓이 비율을 따르게
+  const zones = def.valueZones.map((z) => ({
+    ...z,
+    x: Math.round(z.x * sx),
+    y: Math.round(z.y * sy),
+    radius: Math.max(2, Math.round(z.radius * sr)),
+  }));
   return {
     stageId: def.stageId,
     order: def.order,
@@ -117,11 +132,13 @@ export function localizeStage(def: StageDef, locale: string): StageConfig {
     description: pickText(def.description, locale),
     botTier: def.botTier,
     botCount: def.botCount,
-    mapSize: def.mapSize,
+    fieldSize: def.fieldSize,
+    mapWidth: width,
+    mapHeight: height,
     clearCondition: def.clearCondition,
     timeLimitSec: def.timeLimitSec,
     theme: def.theme,
-    valueZones: def.valueZones,
+    valueZones: zones,
     backgroundImageId: def.backgroundImageId,
   };
 }
