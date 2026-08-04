@@ -6,9 +6,11 @@ import { initReactI18next } from "react-i18next";
 import koCommon from "@/locales/ko/common.json";
 import koGame from "@/locales/ko/game.json";
 import koAdmin from "@/locales/ko/admin.json";
+import koCreate from "@/locales/ko/create.json";
 import enCommon from "@/locales/en/common.json";
 import enGame from "@/locales/en/game.json";
 import enAdmin from "@/locales/en/admin.json";
+import enCreate from "@/locales/en/create.json";
 
 export const SUPPORTED_LOCALES = ["ko", "en"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
@@ -17,8 +19,8 @@ export const DEFAULT_LOCALE: Locale = "ko";
 if (!i18n.isInitialized) {
   i18n.use(initReactI18next).init({
     resources: {
-      ko: { common: koCommon, game: koGame, admin: koAdmin },
-      en: { common: enCommon, game: enGame, admin: enAdmin },
+      ko: { common: koCommon, game: koGame, admin: koAdmin, create: koCreate },
+      en: { common: enCommon, game: enGame, admin: enAdmin, create: enCreate },
     },
     lng: DEFAULT_LOCALE,
     fallbackLng: DEFAULT_LOCALE,

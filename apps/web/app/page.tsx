@@ -10,6 +10,7 @@ import { fetchActiveStageDefs } from "@/lib/stagesRemote";
 import { useAuth } from "@/components/AuthProvider";
 import LanguageToggle from "@/components/LanguageToggle";
 import MenuBackground from "@/components/MenuBackground";
+import MyRooms from "@/components/MyRooms";
 import type { ControlMode, StageDef } from "@/game-engine/types";
 
 const THEME_STYLE = {
@@ -102,8 +103,20 @@ export default function Home() {
         </p>
       </div>
 
+      {/* 방 만들기 */}
+      <Link
+        href="/create"
+        className="z-10 mt-7 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-500 px-7 py-3 text-base font-bold shadow-lg shadow-fuchsia-900/40 transition-transform hover:scale-105 sm:mt-9 sm:text-lg"
+      >
+        🏗 {t("createButton", { ns: "create" })}
+      </Link>
+      <p className="z-10 mt-2 text-xs text-zinc-400">{t("subtitle", { ns: "create" })}</p>
+
+      {/* 내가 만든 방 */}
+      <MyRooms />
+
       {/* 조작 모드 토글 */}
-      <div className="z-10 mt-7 flex items-center gap-1 rounded-full border border-white/10 bg-black/40 p-1 text-xs shadow-lg backdrop-blur-md sm:mt-10 sm:text-sm">
+      <div className="z-10 mt-9 flex items-center gap-1 rounded-full border border-white/10 bg-black/40 p-1 text-xs shadow-lg backdrop-blur-md sm:mt-12 sm:text-sm">
         {(
           [
             ["classic", t("modeClassic")],

@@ -8,19 +8,38 @@ import GameCanvas from "@/components/GameCanvas";
 import { localizeStage } from "@/lib/stages";
 import { fetchStageDef } from "@/lib/stagesRemote";
 import { fetchApprovedImage } from "@/lib/backgroundImages";
+import { fetchRoom } from "@/lib/roomsClient";
+import { roomAspect, roomToStageDef } from "@/lib/rooms";
 import type { ControlMode, StageDef } from "@/game-engine/types";
 
 function PlayInner() {
   const { t, i18n } = useTranslation("game");
   const params = useSearchParams();
   const stageId = params.get("stage");
-  const mode: ControlMode = params.get("mode") === "manual" ? "manual" : "classic";
+  const roomId = params.get("room");
   const [def, setDef] = useState<StageDef | null>(null);
   const [bgUrl, setBgUrl] = useState<string | undefined>(undefined);
   const [aspect, setAspect] = useState(1);
+  const [roomMode, setRoomMode] = useState<ControlMode | null>(null);
   const [run, setRun] = useState(0);
+  // 커스텀 방은 방에 저장된 조작모드를, 스테이지는 메뉴에서 고른 모드를 쓴다
+  const mode: ControlMode =
+    roomMode ?? (params.get("mode") === "manual" ? "manual" : "classic");
 
   useEffect(() => {
+    if (!roomId) return;
+    (async () => {
+      const room = await fetchRoom(roomId);
+      if (!room) return;
+      setDef(roomToStageDef(room));
+      setBgUrl(room.imageUrl);
+      setAspect(roomAspect(room));
+      setRoomMode(room.controlMode);
+    })();
+  }, [roomId]);
+
+  useEffect(() => {
+    if (roomId) return; // 커스텀 방은 위에서 처리
     (async () => {
       const d = await fetchStageDef(stageId);
       // 기본: 번들된 샘플 이미지(정사각형). 승인된 배경이미지가 연결돼 있으면 그것으로 교체하고
@@ -39,7 +58,7 @@ function PlayInner() {
       setAspect(ratio);
       setDef(d);
     })();
-  }, [stageId]);
+  }, [stageId, roomId]);
 
   return (
     <div className="game-view fixed inset-0 bg-black">

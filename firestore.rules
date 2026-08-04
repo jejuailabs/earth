@@ -16,6 +16,12 @@ service cloud.firestore {
                     && !("role" in request.resource.data.diff(resource.data).affectedKeys());
     }
 
+    // 커스텀 방: 만든 사람만 읽을 수 있고, 쓰기는 서버(Admin SDK) 경유만 허용
+    match /rooms/{roomId} {
+      allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
     // 매치 기록: 로그인 유저 생성/조회 가능 (MVP — 치트 방지는 서버 검증 도입 시 강화)
     match /matches/{matchId} {
       allow create: if request.auth != null;
