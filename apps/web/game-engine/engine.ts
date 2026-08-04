@@ -112,10 +112,15 @@ export class GameEngine {
   }
 
   toggleHumanMoving() {
+    this.setHumanMoving(!this.human.moving);
+  }
+
+  // 터치 조작: 누르고 있는 동안만 전진 (manual 모드)
+  setHumanMoving(moving: boolean) {
     if (this.controlMode !== "manual") return;
     const p = this.human;
     if (!p.alive) return;
-    p.moving = !p.moving;
+    p.moving = moving;
   }
 
   // ── 틱 ────────────────────────────────────────────────

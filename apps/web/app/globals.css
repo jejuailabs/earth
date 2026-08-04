@@ -23,4 +23,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  /* 모바일: 당겨서 새로고침/고무줄 스크롤이 게임 조작을 방해하지 않도록 */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 게임 화면에서는 스크롤 자체를 막는다 (play 페이지가 이 클래스를 붙임) */
+body:has(.game-view) {
+  overflow: hidden;
 }

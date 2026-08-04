@@ -38,7 +38,7 @@ function PlayInner() {
   }, [stageId]);
 
   return (
-    <div className="fixed inset-0 bg-black">
+    <div className="game-view fixed inset-0 bg-black">
       {def ? (
         <GameCanvas
           key={`${run}-${i18n.language}`}
@@ -53,15 +53,23 @@ function PlayInner() {
         </div>
       )}
 
-      {/* 좌하단: 뒤로가기 + 모드 표시 (HUD 위에 떠 있는 컨트롤) */}
-      <div className="absolute bottom-3 left-4 z-20 flex items-center gap-3">
+      {/* 뒤로가기 + 모드 표시 — 모바일은 좌상단 아이콘, 데스크톱은 좌하단 텍스트 버튼 */}
+      <div
+        className="absolute left-2 top-2 z-30 flex items-center gap-3 sm:bottom-3 sm:left-4 sm:top-auto"
+        style={{
+          marginTop: "env(safe-area-inset-top)",
+          marginLeft: "env(safe-area-inset-left)",
+        }}
+      >
         <Link
           href="/"
-          className="rounded-full border border-white/10 bg-black/45 px-4 py-1.5 text-sm text-zinc-200 backdrop-blur-md transition-colors hover:bg-black/70 hover:text-white"
+          aria-label={t("stageSelect", { ns: "common" })}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/45 text-lg text-zinc-200 backdrop-blur-md transition-colors hover:bg-black/70 hover:text-white sm:h-auto sm:w-auto sm:px-4 sm:py-1.5 sm:text-sm"
         >
-          ← {t("stageSelect", { ns: "common" })}
+          <span className="sm:hidden">←</span>
+          <span className="hidden sm:inline">← {t("stageSelect", { ns: "common" })}</span>
         </Link>
-        <span className="rounded-full bg-black/30 px-3 py-1 text-xs text-zinc-400 backdrop-blur-md">
+        <span className="hidden rounded-full bg-black/30 px-3 py-1 text-xs text-zinc-400 backdrop-blur-md sm:inline">
           {mode === "classic" ? t("modeLabelClassic") : t("modeLabelManual")}
         </span>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 // 솔로 봇전 게임 화면 — 풀스크린 3D 캔버스 + 플로팅 글래스 HUD
-// 엔진 구동(고정 틱)은 그대로, 캔버스가 뷰포트를 꽉 채우고 UI는 오버레이로 뜬다.
+// 데스크톱: 키보드 + 휠 줌 / 모바일: 가상 조이스틱 + 핀치 줌 (TouchControls)
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { Renderer } from "@/game-engine/render";
 import { Renderer3D } from "@/game-engine/render3d";
 import { GAME_CONFIG as C } from "@/game-engine/config";
 import { useAuth } from "@/components/AuthProvider";
+import TouchControls from "@/components/TouchControls";
 import { recordMatch, type MatchGains } from "@/lib/matches";
 import type { ControlMode, GameResult, StageConfig, Vec } from "@/game-engine/types";
 
@@ -121,6 +122,9 @@ export default function GameCanvas({
   const { t } = useTranslation("game");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const minimapRef = useRef<HTMLCanvasElement>(null);
+  // 터치 조작이 접근할 엔진/렌더러 (루프 밖에서도 조작 가능하도록 ref로 보관)
+  const engineRef = useRef<GameEngine | null>(null);
+  const rendererRef = useRef<Renderer3D | Renderer | null>(null);
   const { user, userDoc } = useAuth();
   // 게임 루프 클로저에서 최신 로그인 상태를 참조하기 위한 ref
   const authRef = useRef({ user, userDoc });
@@ -137,12 +141,19 @@ export default function GameCanvas({
     result: null,
     gains: null,
   });
+  const [showHint, setShowHint] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowHint(false), 6000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const engine = new GameEngine(stage, mode);
+    engineRef.current = engine;
     // 3D 렌더러 우선, WebGL 불가 환경에서는 2D 캔버스 폴백
     let renderer: Renderer3D | Renderer;
     let onResize: (() => void) | null = null;
@@ -153,6 +164,7 @@ export default function GameCanvas({
       onResize = () => r3d.resize(canvas.clientWidth, canvas.clientHeight);
       onResize();
       window.addEventListener("resize", onResize);
+      window.addEventListener("orientationchange", onResize);
       onWheel = (e) => {
         e.preventDefault();
         r3d.zoomBy(e.deltaY);
@@ -163,6 +175,7 @@ export default function GameCanvas({
       canvas.style.objectFit = "contain"; // 2D는 정사각형 유지
       renderer = new Renderer(canvas, engine, bgUrl);
     }
+    rendererRef.current = renderer;
 
     // 미니맵 준비 (1px = 1셀 오프스크린 → 확대)
     const miniCell = document.createElement("canvas");
@@ -239,9 +252,14 @@ export default function GameCanvas({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
-      if (onResize) window.removeEventListener("resize", onResize);
+      if (onResize) {
+        window.removeEventListener("resize", onResize);
+        window.removeEventListener("orientationchange", onResize);
+      }
       if (onWheel) window.removeEventListener("wheel", onWheel);
       if (renderer instanceof Renderer3D) renderer.dispose(); // WebGL 컨텍스트 누수 방지
+      engineRef.current = null;
+      rendererRef.current = null;
     };
   }, [stage, mode, bgUrl]);
 
@@ -259,79 +277,122 @@ export default function GameCanvas({
       {/* 풀스크린 캔버스 */}
       <canvas ref={canvasRef} className="block h-full w-full" />
 
-      {/* ── 플로팅 HUD ── */}
-      {/* 좌상단: 스테이지 + 목표 진행 */}
-      <div className="pointer-events-none absolute left-4 top-4 min-w-64 rounded-2xl border border-white/10 bg-black/45 px-5 py-3 shadow-xl backdrop-blur-md">
-        <p className="text-lg font-bold text-white drop-shadow">{stage.name}</p>
-        <p className="mt-0.5 text-sm text-zinc-300">
-          🗺 <b className="tabular-nums text-white">{hud.areaPct.toFixed(1)}%</b>{" "}
-          <span className="text-zinc-400">/ {t("goalPrefix", { goal })}</span>
-        </p>
-        {progress !== null && (
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 shadow-[0_0_8px_rgba(56,189,248,0.8)] transition-[width] duration-300"
-              style={{ width: `${progress}%` }}
-            />
+      {/* 터치 조작 (모바일) — HUD보다 아래 레이어 */}
+      {!hud.result && (
+        <TouchControls
+          mode={mode}
+          onDir={(v) => engineRef.current?.setHumanDir(v)}
+          onMoving={(m) => engineRef.current?.setHumanMoving(m)}
+          onPinch={(d) => {
+            const r = rendererRef.current;
+            if (r instanceof Renderer3D) r.zoomBy(d);
+          }}
+        />
+      )}
+
+      {/* ── 플로팅 HUD (노치/홈바 안전영역 안쪽에 배치) ── */}
+      <div
+        className="pointer-events-none absolute inset-0 z-20"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+          paddingLeft: "env(safe-area-inset-left)",
+          paddingRight: "env(safe-area-inset-right)",
+        }}
+      >
+        {/* 스테이지 + 목표 진행 — 모바일은 상단 2행째(뒤로가기·타이머·점수 아래) */}
+        <div className="absolute left-2 top-14 max-w-[62vw] rounded-xl border border-white/10 bg-black/45 px-3 py-1.5 shadow-xl backdrop-blur-md sm:left-4 sm:top-4 sm:max-w-none sm:min-w-64 sm:rounded-2xl sm:px-5 sm:py-3">
+          <p className="truncate text-sm font-bold text-white drop-shadow sm:text-lg">
+            {stage.name}
+          </p>
+          <p className="mt-0.5 text-[11px] text-zinc-300 sm:text-sm">
+            🗺 <b className="tabular-nums text-white">{hud.areaPct.toFixed(1)}%</b>{" "}
+            <span className="hidden text-zinc-400 sm:inline">/ {t("goalPrefix", { goal })}</span>
+            <span className="text-zinc-400 sm:hidden">/ {cond.value}%</span>
+          </p>
+          {progress !== null && (
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10 sm:mt-2 sm:h-1.5">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 shadow-[0_0_8px_rgba(56,189,248,0.8)] transition-[width] duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 상단 중앙: 타이머 */}
+        <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-xl border border-white/10 bg-black/45 px-4 py-1 shadow-xl backdrop-blur-md sm:top-4 sm:rounded-2xl sm:px-7 sm:py-2.5">
+          <p
+            className={`font-mono text-xl font-bold tabular-nums drop-shadow sm:text-3xl ${
+              hud.timeLeftSec <= 15 ? "animate-pulse text-red-400" : "text-white"
+            }`}
+          >
+            {timeStr}
+          </p>
+        </div>
+
+        {/* 우상단: 점수/킬 */}
+        <div className="absolute right-2 top-2 flex gap-1.5 sm:right-4 sm:top-4 sm:gap-3">
+          <div className="rounded-xl border border-white/10 bg-black/45 px-3 py-1 text-center shadow-xl backdrop-blur-md sm:rounded-2xl sm:px-5 sm:py-2.5">
+            <p className="text-[9px] uppercase tracking-widest text-zinc-400 sm:text-[10px]">
+              SCORE
+            </p>
+            <p className="font-mono text-sm font-bold tabular-nums text-yellow-300 sm:text-xl">
+              {hud.score}
+            </p>
           </div>
+          <div className="rounded-xl border border-white/10 bg-black/45 px-3 py-1 text-center shadow-xl backdrop-blur-md sm:rounded-2xl sm:px-5 sm:py-2.5">
+            <p className="text-[9px] uppercase tracking-widest text-zinc-400 sm:text-[10px]">KILL</p>
+            <p className="font-mono text-sm font-bold tabular-nums text-red-300 sm:text-xl">
+              {hud.kills}
+            </p>
+          </div>
+        </div>
+
+        {/* 우하단: 미니맵 */}
+        <div className="absolute bottom-2 right-2 rounded-xl border border-white/15 bg-black/55 p-1 shadow-xl backdrop-blur-md sm:bottom-4 sm:right-4 sm:rounded-2xl sm:p-2">
+          <canvas
+            ref={minimapRef}
+            width={200}
+            height={200}
+            className="block h-24 w-24 rounded-lg sm:h-44 sm:w-44 sm:rounded-xl"
+          />
+        </div>
+
+        {/* 하단: 조작 안내 (모바일은 처음 몇 초만) */}
+        <p className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-black/40 px-5 py-1.5 text-xs text-zinc-300 backdrop-blur-md sm:block">
+          {mode === "manual" ? t("controlsManual") : t("controlsClassic")} · {t("controlsZoom")} ·{" "}
+          {t("controlsTrail")}
+        </p>
+        {showHint && (
+          /* 미니맵(우하단 96px)을 피해 좌측에 배치 */
+          <p className="absolute bottom-3 left-2 right-28 rounded-2xl bg-black/60 px-3 py-2 text-center text-[11px] leading-tight text-zinc-200 backdrop-blur-md sm:hidden">
+            {mode === "manual" ? t("touchHintManual") : t("touchHint")}
+          </p>
         )}
       </div>
 
-      {/* 상단 중앙: 타이머 */}
-      <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-2xl border border-white/10 bg-black/45 px-7 py-2.5 shadow-xl backdrop-blur-md">
-        <p
-          className={`font-mono text-3xl font-bold tabular-nums drop-shadow ${
-            hud.timeLeftSec <= 15 ? "animate-pulse text-red-400" : "text-white"
-          }`}
-        >
-          {timeStr}
-        </p>
-      </div>
-
-      {/* 우상단: 점수/킬 */}
-      <div className="pointer-events-none absolute right-4 top-4 flex gap-3">
-        <div className="rounded-2xl border border-white/10 bg-black/45 px-5 py-2.5 text-center shadow-xl backdrop-blur-md">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-400">SCORE</p>
-          <p className="font-mono text-xl font-bold tabular-nums text-yellow-300">{hud.score}</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-black/45 px-5 py-2.5 text-center shadow-xl backdrop-blur-md">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-400">KILL</p>
-          <p className="font-mono text-xl font-bold tabular-nums text-red-300">{hud.kills}</p>
-        </div>
-      </div>
-
-      {/* 우하단: 미니맵 */}
-      <div className="pointer-events-none absolute bottom-4 right-4 rounded-2xl border border-white/15 bg-black/55 p-2 shadow-xl backdrop-blur-md">
-        <canvas ref={minimapRef} width={200} height={200} className="block h-44 w-44 rounded-xl" />
-      </div>
-
-      {/* 하단: 조작 안내 */}
-      <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/40 px-5 py-1.5 text-xs text-zinc-300 backdrop-blur-md">
-        {mode === "manual" ? t("controlsManual") : t("controlsClassic")} · {t("controlsZoom")} ·{" "}
-        {t("controlsTrail")}
-      </p>
-
       {/* 부활 대기 오버레이 */}
       {hud.respawnInSec !== null && !hud.result && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/55 backdrop-blur-[3px]">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 px-6 backdrop-blur-[3px]">
           <div className="text-center text-white">
-            <p className="text-6xl font-black drop-shadow-[0_0_25px_rgba(239,68,68,0.7)]">
+            <p className="text-4xl font-black drop-shadow-[0_0_25px_rgba(239,68,68,0.7)] sm:text-6xl">
               {t("eliminated")}
             </p>
-            <p className="mt-4 text-3xl font-semibold tabular-nums">
+            <p className="mt-3 text-2xl font-semibold tabular-nums sm:mt-4 sm:text-3xl">
               {t("respawnIn", { sec: hud.respawnInSec })}
             </p>
-            <p className="mt-2 text-zinc-300">{t("respawnPenalty")}</p>
+            <p className="mt-2 text-sm text-zinc-300 sm:text-base">{t("respawnPenalty")}</p>
           </div>
         </div>
       )}
 
       {/* 결과 오버레이 */}
       {hud.result && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="rounded-3xl border border-white/10 bg-zinc-900/80 px-16 py-12 text-center text-white shadow-2xl">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-900/80 px-6 py-8 text-center text-white shadow-2xl sm:max-w-lg sm:px-16 sm:py-12">
             <p
-              className={`text-6xl font-black tracking-tight ${
+              className={`text-4xl font-black tracking-tight sm:text-6xl ${
                 hud.result.outcome === "clear"
                   ? "drop-shadow-[0_0_30px_rgba(74,222,128,0.5)]"
                   : "drop-shadow-[0_0_30px_rgba(239,68,68,0.5)]"
@@ -340,12 +401,12 @@ export default function GameCanvas({
               {hud.result.outcome === "clear" ? t("clear") : t("fail")}
             </p>
             {hud.result.outcome === "clear" && (
-              <p className="mt-4 text-6xl tracking-[0.35em] text-yellow-400 drop-shadow-[0_0_16px_rgba(250,204,21,0.7)]">
+              <p className="mt-3 text-4xl tracking-[0.3em] text-yellow-400 drop-shadow-[0_0_16px_rgba(250,204,21,0.7)] sm:mt-4 sm:text-6xl sm:tracking-[0.35em]">
                 {"★".repeat(hud.result.stars)}
                 <span className="text-zinc-700">{"★".repeat(3 - hud.result.stars)}</span>
               </p>
             )}
-            <div className="mt-5 space-y-1 text-zinc-300">
+            <div className="mt-4 space-y-1 text-sm text-zinc-300 sm:mt-5 sm:text-base">
               <p>{t("areaPct", { pct: hud.result.areaPercent.toFixed(1) })}</p>
               <p>
                 {t("statsLine", {
@@ -355,7 +416,7 @@ export default function GameCanvas({
                 })}
               </p>
               {hud.gains ? (
-                <p className="pt-1 text-lg font-semibold text-emerald-400">
+                <p className="pt-1 text-base font-semibold text-emerald-400 sm:text-lg">
                   {t("gains", { exp: hud.gains.exp, points: hud.gains.points })}
                   {hud.gains.leveledUpTo && (
                     <span className="ml-2 font-bold text-yellow-400">
@@ -367,16 +428,16 @@ export default function GameCanvas({
                 !user && <p className="pt-1 text-sm text-zinc-500">{t("loginToSave")}</p>
               )}
             </div>
-            <div className="mt-8 flex justify-center gap-4">
+            <div className="mt-6 flex justify-center gap-3 sm:mt-8 sm:gap-4">
               <button
                 onClick={onRestart}
-                className="rounded-xl bg-blue-600 px-9 py-3 text-xl font-bold shadow-lg shadow-blue-900/50 transition-transform hover:scale-105 hover:bg-blue-500"
+                className="rounded-xl bg-blue-600 px-6 py-3 text-lg font-bold shadow-lg shadow-blue-900/50 transition-transform hover:scale-105 hover:bg-blue-500 sm:px-9 sm:text-xl"
               >
                 {t("retry")}
               </button>
               <Link
                 href="/"
-                className="rounded-xl bg-zinc-700 px-9 py-3 text-xl font-bold transition-transform hover:scale-105 hover:bg-zinc-600"
+                className="rounded-xl bg-zinc-700 px-6 py-3 text-lg font-bold transition-transform hover:scale-105 hover:bg-zinc-600 sm:px-9 sm:text-xl"
               >
                 {t("toMenu")}
               </Link>

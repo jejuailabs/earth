@@ -18,6 +18,8 @@
   "controlsManual": "방향키 / WASD 이동 · Space 정지/재개 (manual 모드)",
   "controlsTrail": "자기 영역 밖에서 궤적이 잘리면 탈락",
   "controlsZoom": "마우스 휠 줌",
+  "touchHint": "화면을 드래그해 방향 조작 · 두 손가락으로 확대/축소",
+  "touchHintManual": "드래그해 이동(떼면 정지) · 두 손가락으로 확대/축소",
   "modeLabelClassic": "자동전진 모드",
   "modeLabelManual": "수동조작 모드"
 }

@@ -22,6 +22,7 @@ const OVERVIEW_DIST = 125; // 사망/관전 시 전장 조망 거리
 export class Renderer3D {
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer;
+  private bloom: UnrealBloomPass;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
 
@@ -42,6 +43,7 @@ export class Renderer3D {
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3();
   private zoomDist = ZOOM_DEFAULT;
+  private lowSpec = false;
   private disposed = false;
   private dummy = new THREE.Object3D();
   private colorTmp = new THREE.Color();
@@ -56,11 +58,21 @@ export class Renderer3D {
     const initW = canvas.clientWidth || 1280;
     const initH = canvas.clientHeight || 800;
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    // 모바일/저사양 판정 — 픽셀비·그림자·블룸 해상도를 낮춰 프레임을 확보한다
+    const coarsePointer =
+      typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+    const lowSpec = coarsePointer || (navigator.hardwareConcurrency ?? 8) <= 4;
+    this.lowSpec = lowSpec;
+
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: !lowSpec, // MSAA는 모바일 GPU에 부담이 커서 끈다
+      powerPreference: "high-performance",
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowSpec ? 1.3 : 1.75));
     this.renderer.setSize(initW, initH, false);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = lowSpec ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
 
@@ -82,7 +94,7 @@ export class Renderer3D {
     const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
     sun.position.set(N * 0.2, 90, N * 0.15);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(lowSpec ? 1024 : 2048, lowSpec ? 1024 : 2048);
     sun.shadow.camera.left = -N * 0.75;
     sun.shadow.camera.right = N * 0.75;
     sun.shadow.camera.top = N * 0.75;
@@ -245,9 +257,10 @@ export class Renderer3D {
 
     // ── 우주 테마: 별 파티클 ──
     if (isSpace) {
+      const starCount = lowSpec ? 500 : 1200;
       const starGeo = new THREE.BufferGeometry();
-      const pos = new Float32Array(1200 * 3);
-      for (let s = 0; s < 1200; s++) {
+      const pos = new Float32Array(starCount * 3);
+      for (let s = 0; s < starCount; s++) {
         const r = 180 + Math.random() * 120;
         const a = Math.random() * Math.PI * 2;
         const h = Math.random() * 160 - 20;
@@ -263,13 +276,21 @@ export class Renderer3D {
       this.scene.add(stars);
     }
 
-    // ── 포스트프로세싱: 반해상도 블룸 (성능 최적화) ──
+    // ── 포스트프로세싱: 축소 해상도 블룸 (모바일은 1/3로 더 낮춤) ──
+    const div = this.bloomDiv();
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(
-      new UnrealBloomPass(new THREE.Vector2(initW / 2, initH / 2), 0.55, 0.5, 0.82),
+    this.bloom = new UnrealBloomPass(
+      new THREE.Vector2(initW / div, initH / div),
+      0.55,
+      0.5,
+      0.82,
     );
+    this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+
+    // 세로 화면은 가로 시야가 좁으므로 기본 줌을 살짝 뒤로 뺀다
+    if (initH > initW) this.zoomDist = ZOOM_DEFAULT * 1.35;
   }
 
   // 마우스 휠 줌 (배율 방식 — 가까울수록 미세하게, 멀수록 크게)
@@ -277,11 +298,18 @@ export class Renderer3D {
     this.zoomDist = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, this.zoomDist * (1 + deltaY * 0.0011)));
   }
 
+  private bloomDiv() {
+    return this.lowSpec ? 3 : 2;
+  }
+
   // 뷰포트 크기 변경 대응 (풀스크린 모드)
   resize(width: number, height: number) {
     if (this.disposed || width === 0 || height === 0) return;
     this.renderer.setSize(width, height, false);
     this.composer.setSize(width, height);
+    // composer.setSize가 블룸을 전체 해상도로 되돌리므로 축소 해상도를 다시 지정
+    const div = this.bloomDiv();
+    this.bloom.setSize(width / div, height / div);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }

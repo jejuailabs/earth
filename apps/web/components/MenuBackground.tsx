@@ -18,8 +18,12 @@ export default function MenuBackground() {
     } catch {
       return; // WebGL 불가 — CSS 그라데이션 배경만 유지
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    // 모바일에서는 해상도·폴리곤·별 수를 낮춰 배터리/프레임을 아낀다
+    const lowSpec = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowSpec ? 1.2 : 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    const seg: [number, number] = lowSpec ? [40, 28] : [64, 48];
+    const starCount = lowSpec ? 550 : 1500;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
@@ -34,7 +38,7 @@ export default function MenuBackground() {
     const planetTex = new THREE.CanvasTexture(makePlanetTexture(1024));
     planetTex.colorSpace = THREE.SRGBColorSpace;
     const planet = new THREE.Mesh(
-      new THREE.SphereGeometry(11, 64, 48),
+      new THREE.SphereGeometry(11, ...seg),
       new THREE.MeshStandardMaterial({ map: planetTex, roughness: 0.85 }),
     );
     planet.position.set(13, -9, -6);
@@ -42,7 +46,7 @@ export default function MenuBackground() {
 
     // 대기 글로우 (뒷면 렌더 셸)
     const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(11.9, 64, 48),
+      new THREE.SphereGeometry(11.9, ...seg),
       new THREE.MeshBasicMaterial({
         color: 0x4d9fff,
         transparent: true,
@@ -56,7 +60,7 @@ export default function MenuBackground() {
     // 구름 셸
     const cloudTex = new THREE.CanvasTexture(makeCloudTexture(512));
     const clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(11.25, 64, 48),
+      new THREE.SphereGeometry(11.25, ...seg),
       new THREE.MeshStandardMaterial({
         map: cloudTex,
         transparent: true,
@@ -69,8 +73,8 @@ export default function MenuBackground() {
 
     // 별 필드
     const starGeo = new THREE.BufferGeometry();
-    const starPos = new Float32Array(1500 * 3);
-    for (let i = 0; i < 1500; i++) {
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
       const r = 60 + Math.random() * 90;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);

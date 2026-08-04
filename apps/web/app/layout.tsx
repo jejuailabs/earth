@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AuthProvider from "@/components/AuthProvider";
 import I18nProvider from "@/components/I18nProvider";
@@ -17,6 +17,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Game Earth — 영토 점령",
   description: "Paper.io 스타일 실시간 영토 점령 웹게임",
+};
+
+// 모바일: 페이지 확대/축소는 막고(핀치는 게임 줌으로 사용), 노치 영역까지 렌더
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#050810",
 };
 
 export default function RootLayout({
