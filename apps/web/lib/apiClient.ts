@@ -14,8 +14,16 @@ export async function authedFetch<T>(path: string, init?: RequestInit): Promise<
     },
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `HTTP ${res.status}`);
+    // JSON이 아니면(플랫폼 레벨 오류 등) 본문 앞부분이라도 보여준다 —
+    // "HTTP 500"만 남으면 원인을 좁힐 수 없다.
+    const raw = await res.text().catch(() => "");
+    let message = "";
+    try {
+      message = (JSON.parse(raw) as { error?: string }).error ?? "";
+    } catch {
+      message = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+    }
+    throw new Error(message || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
@@ -24,7 +32,7 @@ export async function authedFetch<T>(path: string, init?: RequestInit): Promise<
 // (업로드 용량과 임시 저장 용량을 줄이고, 텍스처로도 이 정도면 충분하다)
 export async function downscaleImage(
   file: File,
-  maxSide = 1600,
+  maxSide = 1400,
 ): Promise<{ dataUrl: string; width: number; height: number }> {
   const src = await new Promise<string>((resolve, reject) => {
     const fr = new FileReader();
@@ -39,10 +47,9 @@ export async function downscaleImage(
     im.src = src;
   });
 
+  // 원본이 작아도 항상 JPEG로 재인코딩한다. 원본을 그대로 보내면 PNG 등에서
+  // 요청 본문이 수 MB로 커져 배포 환경의 본문 크기 제한에 걸릴 수 있다.
   const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
-  if (scale === 1 && src.length < 3_000_000) {
-    return { dataUrl: src, width: img.naturalWidth, height: img.naturalHeight };
-  }
   const width = Math.max(1, Math.round(img.naturalWidth * scale));
   const height = Math.max(1, Math.round(img.naturalHeight * scale));
   const cv = document.createElement("canvas");
