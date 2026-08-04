@@ -27,6 +27,11 @@ export interface PlayerState {
   progress: number; // 현재 셀 → 다음 셀 이동 진행도 0~1
   trail: number[]; // 영역 밖 궤적 셀 인덱스 (이동 순서대로)
   areaCells: number;
+  // 영토 바운딩박스 — 점령 탐색을 이 범위로 한정한다 (비어 있으면 bMinX > bMaxX)
+  bMinX: number;
+  bMinY: number;
+  bMaxX: number;
+  bMaxY: number;
   kills: number;
   deaths: number;
   score: number;
@@ -57,7 +62,8 @@ export class GameEngine {
   // 소유권 변경 시 증가 — 렌더러가 영토 메시 재빌드 시점을 감지
   territoryVersion = 0;
 
-  private visited: Uint8Array;
+  private visited: Int32Array; // 세대 스탬프 (0으로 되돌릴 필요 없음)
+  private visitGen = 0;
   private bfsQueue: Int32Array;
   private rng: () => number;
 
@@ -70,7 +76,7 @@ export class GameEngine {
     this.trailOwner = new Int16Array(total).fill(NONE);
     this.revealed = new Uint8Array(total);
     this.zoneMult = new Float32Array(total).fill(1);
-    this.visited = new Uint8Array(total);
+    this.visited = new Int32Array(total);
     this.bfsQueue = new Int32Array(total);
     this.rng = mulberry32(seed >>> 0);
 
@@ -202,43 +208,57 @@ export class GameEngine {
   private capture(p: PlayerState) {
     for (const i of p.trail) {
       this.trailOwner[i] = NONE;
-      this.setOwner(i, p.id);
+      this.setOwner(i, p.id); // p의 영토 바운딩박스도 여기서 함께 확장된다
     }
     p.trail = [];
 
-    // 외곽에서 도달 불가능한 (p 소유가 아닌) 셀 = 폐곡선 내부 → p 소유로
+    // 폐곡선(궤적 + 자기 영토 경계)의 내부는 반드시 "궤적 ∪ p 영토"를 감싸는
+    // 사각형 안에 있다. 그 바깥은 곡선 바깥이 확정이므로 맵 전체를 훑을 필요가 없다.
+    // 맵이 커져도 비용이 플레이어 영토 크기에만 비례하도록 하는 핵심 최적화.
     const N = this.N;
+    const x0 = Math.max(0, p.bMinX - 1);
+    const y0 = Math.max(0, p.bMinY - 1);
+    const x1 = Math.min(N - 1, p.bMaxX + 1);
+    const y1 = Math.min(N - 1, p.bMaxY + 1);
+    if (x1 < x0 || y1 < y0) return; // 영토 없음
+
+    // visited를 매번 0으로 채우지 않도록 세대 스탬프를 쓴다 (O(N²) 제거)
+    const stamp = ++this.visitGen;
     const visited = this.visited;
     const queue = this.bfsQueue;
-    visited.fill(0);
     let head = 0;
     let tail = 0;
 
     const push = (i: number) => {
-      if (!visited[i] && this.owner[i] !== p.id) {
-        visited[i] = 1;
+      if (visited[i] !== stamp && this.owner[i] !== p.id) {
+        visited[i] = stamp;
         queue[tail++] = i;
       }
     };
-    for (let x = 0; x < N; x++) {
-      push(this.idx(x, 0));
-      push(this.idx(x, N - 1));
+    // 사각형 테두리 = "바깥"의 씨앗
+    for (let x = x0; x <= x1; x++) {
+      push(this.idx(x, y0));
+      push(this.idx(x, y1));
     }
-    for (let y = 0; y < N; y++) {
-      push(this.idx(0, y));
-      push(this.idx(N - 1, y));
+    for (let y = y0; y <= y1; y++) {
+      push(this.idx(x0, y));
+      push(this.idx(x1, y));
     }
     while (head < tail) {
       const i = queue[head++];
       const x = i % N;
       const y = (i / N) | 0;
-      if (x > 0) push(i - 1);
-      if (x < N - 1) push(i + 1);
-      if (y > 0) push(i - N);
-      if (y < N - 1) push(i + N);
+      if (x > x0) push(i - 1);
+      if (x < x1) push(i + 1);
+      if (y > y0) push(i - N);
+      if (y < y1) push(i + N);
     }
-    for (let i = 0; i < N * N; i++) {
-      if (!visited[i] && this.owner[i] !== p.id) this.setOwner(i, p.id);
+    // 사각형 안에서 바깥과 이어지지 않은 (p 소유가 아닌) 셀 = 폐곡선 내부
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const i = this.idx(x, y);
+        if (visited[i] !== stamp && this.owner[i] !== p.id) this.setOwner(i, p.id);
+      }
     }
   }
 
@@ -251,6 +271,14 @@ export class GameEngine {
     if (newId !== NONE) {
       const p = this.players[newId];
       p.areaCells++;
+      // 영토 바운딩박스 증분 갱신 (점령 탐색 범위 한정용). 셀을 잃어도 줄이지 않고
+      // 넓은 쪽으로 남겨둔다 — 탐색 범위가 조금 넉넉해질 뿐 결과는 같다.
+      const bx = i % this.N;
+      const by = (i / this.N) | 0;
+      if (bx < p.bMinX) p.bMinX = bx;
+      if (bx > p.bMaxX) p.bMaxX = bx;
+      if (by < p.bMinY) p.bMinY = by;
+      if (by > p.bMaxY) p.bMaxY = by;
       p.score += C.pointsPerCell * this.zoneMult[i];
       if (!this.revealed[i]) {
         this.revealed[i] = 1;
@@ -294,6 +322,11 @@ export class GameEngine {
       // 봇: 전체 영토 몰수 후 새 위치에서 재스폰
       p.respawnAt = this.timeMs + C.botRespawnDelaySec * 1000;
       for (let i = 0; i < this.owner.length; i++) if (this.owner[i] === p.id) this.setOwner(i, NONE);
+      // 영토를 전부 잃었으므로 바운딩박스도 비운다
+      p.bMinX = this.N;
+      p.bMinY = this.N;
+      p.bMaxX = -1;
+      p.bMaxY = -1;
       p.respawnCell = NONE;
     }
   }
@@ -413,6 +446,10 @@ export class GameEngine {
       progress: 0,
       trail: [],
       areaCells: 0,
+      bMinX: this.N,
+      bMinY: this.N,
+      bMaxX: -1,
+      bMaxY: -1,
       kills: 0,
       deaths: 0,
       score: 0,
