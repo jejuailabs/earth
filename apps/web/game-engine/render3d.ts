@@ -165,6 +165,10 @@ export class Renderer3D {
     this.territory.castShadow = true;
     this.territory.receiveShadow = true;
     this.territory.count = 0;
+    // InstancedMesh의 boundingSphere는 최초 1회만 계산되고 캐시된다. 인스턴스가 매 프레임
+    // 바뀌는 메시는 그 캐시가 곧바로 낡아 잘못 컬링되므로(특히 count=0으로 시작하면 영구 컬링)
+    // 맵 전체를 덮는 이 메시들은 컬링을 끈다. 어차피 각각 드로우콜 1회다.
+    this.territory.frustumCulled = false;
     this.scene.add(this.territory);
 
     const fillGeo = new THREE.BoxGeometry(1.0, 0.1, 1.0);
@@ -178,6 +182,7 @@ export class Renderer3D {
     this.territoryFill.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.territoryFill.receiveShadow = true;
     this.territoryFill.count = 0;
+    this.territoryFill.frustumCulled = false;
     this.scene.add(this.territoryFill);
 
     // ── 궤적 (언릿 + 블룸 글로우) ──
@@ -186,6 +191,7 @@ export class Renderer3D {
     this.trails = new THREE.InstancedMesh(trailGeo, trailMat, 4000);
     this.trails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.trails.count = 0;
+    this.trails.frustumCulled = false; // count=0으로 시작 → 컬링 켜면 영구히 안 보임
     this.scene.add(this.trails);
 
     // ── 플레이어 ──
