@@ -43,8 +43,11 @@ export function decideBotDir(engine: GameEngine, p: PlayerState): Vec {
     brain.mode = "return";
   }
 
+  // 궤적이 원정 상한을 넘었으면 추적보다 귀환이 우선 (추적에 끌려다니다 죽는 것 방지)
+  const overExtended = p.trail.length >= brain.excursionLimit;
+
   // ── 추적 판단 (Lv.2+) ──
-  if (p.botTier >= 2 && brain.mode !== "return") {
+  if (p.botTier >= 2 && brain.mode !== "return" && !overExtended) {
     const target = pickChaseTarget(engine, p);
     if (target !== NONE) {
       brain.mode = "chase";
@@ -54,9 +57,17 @@ export function decideBotDir(engine: GameEngine, p: PlayerState): Vec {
   }
 
   // ── 귀환 ──
-  if (!inOwn && (brain.mode === "return" || p.trail.length >= brain.excursionLimit)) {
+  if (!inOwn && (brain.mode === "return" || overExtended)) {
     brain.mode = "return";
-    const home = brain.homeIdx !== NONE ? brain.homeIdx : nearestOwnCell(engine, p);
+    // 자기 궤적을 피해 실제로 도달 가능한 경로의 첫 걸음. 그리디는 궤적에 막히면
+    // 맴돌기만 하다 죽으므로(계측 결과 사망의 99%가 이 경우) 경로탐색을 우선한다.
+    const step = engine.stepTowardOwnTerritory(p);
+    if (step) return step;
+    // 경로가 막힌 최후의 경우에만 그리디로 대체
+    const home =
+      brain.homeIdx !== NONE && engine.owner[brain.homeIdx] === p.id
+        ? brain.homeIdx
+        : nearestOwnCell(engine, p);
     if (home !== NONE) return greedyToward(engine, p, home, valid);
   }
 

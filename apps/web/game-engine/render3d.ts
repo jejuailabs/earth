@@ -12,8 +12,10 @@ import { NONE, type GameEngine } from "./engine";
 const GROUND_TEX = 1024; // 바닥 텍스처 해상도
 const TERRITORY_H = 0.75; // 영토 블록 높이
 const TRAIL_H = 0.4;
-// 카메라 틸트 방향 (정규화됨) — 줌 거리와 무관하게 각도 유지
-const CAM_OFFSET = new THREE.Vector3(0, 0.78, 0.63).normalize();
+// 카메라 궤도 각도 — 줌 거리와 무관하게 각도 유지 (우클릭 드래그로 조절)
+const CAM_PITCH_DEFAULT = Math.atan2(0.78, 0.63); // 기존 기본 시점과 동일(≈51°)
+const CAM_PITCH_MIN = 0.22; // 거의 지면 높이에서 올려다보는 각
+const CAM_PITCH_MAX = 1.45; // 거의 수직 부감
 const ZOOM_MIN = 16;
 const ZOOM_MAX = 130;
 const ZOOM_DEFAULT = 36;
@@ -42,6 +44,9 @@ export class Renderer3D {
 
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3();
+  private camYaw = 0;
+  private camPitch = CAM_PITCH_DEFAULT;
+  private camOffset = new THREE.Vector3();
   private zoomDist = ZOOM_DEFAULT;
   private lowSpec = false;
   private disposed = false;
@@ -85,7 +90,8 @@ export class Renderer3D {
     // ── 카메라: 플레이어 추적 + 휠 줌 (광활한 월드 속의 나) ──
     this.camera = new THREE.PerspectiveCamera(50, initW / initH, 0.5, 600);
     this.camTarget.set(N / 2, 0, N / 2);
-    this.camPos.copy(this.camTarget).addScaledVector(CAM_OFFSET, this.zoomDist);
+    this.updateCamOffset();
+    this.camPos.copy(this.camTarget).addScaledVector(this.camOffset, this.zoomDist);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camTarget);
 
@@ -304,6 +310,32 @@ export class Renderer3D {
     this.zoomDist = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, this.zoomDist * (1 + deltaY * 0.0011)));
   }
 
+  // 우클릭 드래그로 시점 회전. 방향 규약은 three.js OrbitControls와 동일하게 맞췄다
+  // (오른쪽으로 끌면 월드를 오른쪽으로 돌리고, 아래로 끌면 더 위에서 내려다본다).
+  orbitBy(dxPx: number, dyPx: number) {
+    this.camYaw -= dxPx * 0.006;
+    this.camPitch = Math.min(
+      CAM_PITCH_MAX,
+      Math.max(CAM_PITCH_MIN, this.camPitch + dyPx * 0.005),
+    );
+  }
+
+  resetOrbit() {
+    this.camYaw = 0;
+    this.camPitch = CAM_PITCH_DEFAULT;
+  }
+
+  // 화면 기준 '위쪽'이 월드의 어느 축인지 — 입력을 시점에 맞춰 회전시키는 데 쓴다.
+  // 0=기본(-z), 1=90°, 2=180°, 3=270°
+  yawQuadrant() {
+    return (((Math.round(this.camYaw / (Math.PI / 2)) % 4) + 4) % 4);
+  }
+
+  private updateCamOffset() {
+    const cp = Math.cos(this.camPitch);
+    this.camOffset.set(Math.sin(this.camYaw) * cp, Math.sin(this.camPitch), Math.cos(this.camYaw) * cp);
+  }
+
   private bloomDiv() {
     return this.lowSpec ? 3 : 2;
   }
@@ -377,9 +409,10 @@ export class Renderer3D {
       ? new THREE.Vector3(px + h.dir.x * lookAhead, 0, pz + h.dir.y * lookAhead)
       : new THREE.Vector3(N / 2, 0, N / 2);
     this.camTarget.lerp(desiredTarget, 0.07);
+    this.updateCamOffset();
     const desiredPos = desiredTarget
       .clone()
-      .addScaledVector(CAM_OFFSET, dist)
+      .addScaledVector(this.camOffset, dist)
       .add(new THREE.Vector3(Math.sin(nowMs / 5200) * dist * 0.015, 0, 0));
     this.camPos.lerp(desiredPos, 0.07);
     this.camera.position.copy(this.camPos);

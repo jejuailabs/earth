@@ -65,6 +65,7 @@ export class GameEngine {
   private visited: Int32Array; // 세대 스탬프 (0으로 되돌릴 필요 없음)
   private visitGen = 0;
   private bfsQueue: Int32Array;
+  private bfsSeedDir: Uint8Array; // 경로탐색용: 각 셀에 도달한 '첫 걸음' 방향
   private rng: () => number;
 
   constructor(stage: StageConfig, controlMode: ControlMode, seed = Math.random() * 0xffffffff) {
@@ -77,6 +78,7 @@ export class GameEngine {
     this.revealed = new Uint8Array(total);
     this.zoneMult = new Float32Array(total).fill(1);
     this.visited = new Int32Array(total);
+    this.bfsSeedDir = new Uint8Array(total);
     this.bfsQueue = new Int32Array(total);
     this.rng = mulberry32(seed >>> 0);
 
@@ -201,6 +203,56 @@ export class GameEngine {
     // 4. 영역 밖 → 궤적 생성
     this.trailOwner[i] = p.id;
     p.trail.push(i);
+  }
+
+  // 자기 영토로 돌아가는 최단 경로의 '첫 걸음'을 찾는다 (자기 궤적은 밟으면 죽으므로 통과 불가).
+  // 그리디 이동은 자기 궤적에 막히면 제자리를 맴돌아 궤적만 길어지다 죽으므로, 귀환은 이 탐색을 쓴다.
+  // 경로가 없거나 탐색 상한을 넘으면 null.
+  stepTowardOwnTerritory(p: PlayerState, maxCells = 3000): Vec | null {
+    const N = this.N;
+    const stamp = ++this.visitGen;
+    const visited = this.visited;
+    const queue = this.bfsQueue;
+    const seedDir = this.bfsSeedDir;
+    let head = 0;
+    let tail = 0;
+
+    for (let k = 0; k < DIRS.length; k++) {
+      const d = DIRS[k];
+      // 정반대 방향은 즉시 자기 궤적을 밟는 자살수
+      if ((p.dir.x !== 0 || p.dir.y !== 0) && d.x === -p.dir.x && d.y === -p.dir.y) continue;
+      const nx = p.cx + d.x;
+      const ny = p.cy + d.y;
+      if (!this.inBounds(nx, ny)) continue;
+      const i = this.idx(nx, ny);
+      if (this.trailOwner[i] === p.id) continue;
+      if (this.owner[i] === p.id) return d; // 바로 옆이 내 땅
+      if (visited[i] === stamp) continue;
+      visited[i] = stamp;
+      seedDir[i] = k;
+      queue[tail++] = i;
+    }
+
+    let expanded = 0;
+    while (head < tail && expanded++ < maxCells) {
+      const i = queue[head++];
+      const x = i % N;
+      const y = (i / N) | 0;
+      const k = seedDir[i];
+      for (const d of DIRS) {
+        const nx = x + d.x;
+        const ny = y + d.y;
+        if (!this.inBounds(nx, ny)) continue;
+        const j = this.idx(nx, ny);
+        if (visited[j] === stamp) continue;
+        if (this.trailOwner[j] === p.id) continue;
+        if (this.owner[j] === p.id) return DIRS[k]; // 도착 — 그 경로의 첫 걸음을 반환
+        visited[j] = stamp;
+        seedDir[j] = k;
+        queue[tail++] = j;
+      }
+    }
+    return null;
   }
 
   // ── 점령 (폐곡선 flood-fill, docs/04 §1) ──────────────

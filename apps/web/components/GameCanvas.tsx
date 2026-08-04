@@ -97,6 +97,15 @@ function drawMinimap(
   }
 }
 
+// 시점을 회전해도 조작이 화면 기준으로 유지되도록, 입력 방향을 카메라 yaw에
+// 가장 가까운 90° 단위로 돌려준다. (x,y) → (y,-x)를 quadrant 횟수만큼 적용.
+function screenToWorldDir(d: Vec, renderer: Renderer3D | Renderer | null): Vec {
+  if (!(renderer instanceof Renderer3D)) return d;
+  let v = d;
+  for (let k = renderer.yawQuadrant(); k > 0; k--) v = { x: v.y, y: -v.x };
+  return v;
+}
+
 const KEY_DIRS: Record<string, Vec> = {
   ArrowUp: { x: 0, y: -1 },
   ArrowDown: { x: 0, y: 1 },
@@ -241,17 +250,43 @@ export default function GameCanvas({
       const d = KEY_DIRS[e.code];
       if (d) {
         e.preventDefault();
-        engine.setHumanDir(d);
+        engine.setHumanDir(screenToWorldDir(d, rendererRef.current));
       } else if (e.code === "Space") {
         e.preventDefault();
         engine.toggleHumanMoving();
+      } else if (e.code === "KeyR") {
+        const r = rendererRef.current;
+        if (r instanceof Renderer3D) r.resetOrbit();
       }
     };
     window.addEventListener("keydown", onKey);
 
+    // 우클릭 드래그로 시점 회전
+    let orbiting = false;
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 2) orbiting = true;
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!orbiting) return;
+      const r = rendererRef.current;
+      if (r instanceof Renderer3D) r.orbitBy(e.movementX, e.movementY);
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button === 2) orbiting = false;
+    };
+    const onCtxMenu = (e: MouseEvent) => e.preventDefault();
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("contextmenu", onCtxMenu);
+
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("contextmenu", onCtxMenu);
       if (onResize) {
         window.removeEventListener("resize", onResize);
         window.removeEventListener("orientationchange", onResize);
@@ -281,7 +316,7 @@ export default function GameCanvas({
       {!hud.result && (
         <TouchControls
           mode={mode}
-          onDir={(v) => engineRef.current?.setHumanDir(v)}
+          onDir={(v) => engineRef.current?.setHumanDir(screenToWorldDir(v, rendererRef.current))}
           onMoving={(m) => engineRef.current?.setHumanMoving(m)}
           onPinch={(d) => {
             const r = rendererRef.current;
@@ -362,7 +397,7 @@ export default function GameCanvas({
         {/* 하단: 조작 안내 (모바일은 처음 몇 초만) */}
         <p className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full bg-black/40 px-5 py-1.5 text-xs text-zinc-300 backdrop-blur-md sm:block">
           {mode === "manual" ? t("controlsManual") : t("controlsClassic")} · {t("controlsZoom")} ·{" "}
-          {t("controlsTrail")}
+          {t("controlsOrbit")} · {t("controlsTrail")}
         </p>
         {showHint && (
           /* 미니맵(우하단 96px)을 피해 좌측에 배치 */
