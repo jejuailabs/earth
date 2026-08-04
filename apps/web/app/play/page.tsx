@@ -68,6 +68,7 @@ function PlayInner() {
           stage={localizeStage(def, i18n.language, aspect)}
           mode={mode}
           bgUrl={bgUrl}
+          roomId={roomId ?? undefined}
           onRestart={() => setRun((r) => r + 1)}
         />
       ) : (

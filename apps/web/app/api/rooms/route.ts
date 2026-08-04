@@ -14,12 +14,14 @@ const ALLOWED = new Map([
   ["image/webp", "webp"],
 ]);
 
-export const GET = userRoute(async (_req, decoded) => {
-  const snap = await adminFirestore
-    .collection("rooms")
-    .where("ownerUid", "==", decoded.uid)
-    .limit(ROOM_LIMIT_PER_USER)
-    .get();
+// ?scope=mine(기본) 내 방 / ?scope=public 누구나 참여 가능한 공개 방
+export const GET = userRoute(async (req, decoded) => {
+  const scope = new URL(req.url).searchParams.get("scope");
+  const col = adminFirestore.collection("rooms");
+  const snap =
+    scope === "public"
+      ? await col.where("visibility", "==", "public").limit(60).get()
+      : await col.where("ownerUid", "==", decoded.uid).limit(ROOM_LIMIT_PER_USER).get();
   const rooms = snap.docs
     .map((d) => {
       const r = d.data();
@@ -79,6 +81,10 @@ export const POST = userRoute(async (req, decoded) => {
       ? clearValue
       : Math.max(30, Math.min(900, Number(body.timeLimitSec ?? 180)));
   const name = String(body.name ?? "").trim().slice(0, 40) || "내 방";
+  const visibility = body.visibility === "public" ? "public" : "private";
+  // 랭킹에 표시할 방장 이름 (users 문서 기준, 없으면 토큰의 이름)
+  const ownerDoc = await adminFirestore.doc(`users/${decoded.uid}`).get();
+  const ownerName = String(ownerDoc.data()?.displayName ?? decoded.name ?? "플레이어").slice(0, 40);
 
   const roomId = randomUUID();
   const path = `room-images/${decoded.uid}/${roomId}.${ext}`;
@@ -92,6 +98,8 @@ export const POST = userRoute(async (req, decoded) => {
   const room = {
     roomId,
     ownerUid: decoded.uid,
+    ownerName,
+    visibility,
     name,
     imageUrl,
     imageWidth,

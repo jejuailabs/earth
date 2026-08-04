@@ -10,15 +10,26 @@
   "photoInfo": "{{w}}×{{h}} photo → {{gw}}×{{gh}} cell field",
   "needImage": "Please choose a background photo",
   "fieldSize": "Room size",
-  "size": { "small": "Small", "medium": "Medium", "large": "Large" },
+  "size": {
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large"
+  },
   "controlMode": "Control mode",
-  "mode": { "classic": "Auto-forward", "manual": "Full control" },
+  "mode": {
+    "classic": "Auto-forward",
+    "manual": "Full control"
+  },
   "modeHint": {
     "classic": "Just steer — you keep moving. Easy to learn.",
     "manual": "Move only while held. You can stop, which opens up play."
   },
   "bots": "Opponent bots",
-  "botTier": { "1": "Lv.1 Easygoing", "2": "Lv.2 Chaser", "3": "Lv.3 Interceptor" },
+  "botTier": {
+    "1": "Lv.1 Easygoing",
+    "2": "Lv.2 Chaser",
+    "3": "Lv.3 Interceptor"
+  },
   "botCount": "Bots",
   "goal": "Goal",
   "goalArea": "Territory %",
@@ -31,5 +42,26 @@
   "play": "Play",
   "delete": "Delete",
   "confirmDelete": "Delete room \"{{name}}\"?",
-  "createButton": "+ Create room"
+  "createButton": "+ Create room",
+  "visibility": "Visibility",
+  "visibilityOption": {
+    "private": "Only me",
+    "public": "Anyone can join"
+  },
+  "visibilityHint": {
+    "private": "Only you can see this room.",
+    "public": "Others can find and join it, competing on the same field."
+  },
+  "visibilityGuest": "Sign in to create rooms others can join.",
+  "publicRooms": "Rooms you can join",
+  "byOwner": "{{name}}'s room",
+  "copyLink": "Copy link",
+  "linkCopied": "Link copied",
+  "publicBadge": "Public",
+  "join": "Join",
+  "ranking": "Room ranking",
+  "rankingEmpty": "No scores yet — be the first!",
+  "myBest": "Your best",
+  "rankScore": "{{score}} pts",
+  "loginToRank": "Sign in to get on this room's ranking"
 }

@@ -4,6 +4,7 @@ import type { DecodedIdToken } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminFirestore } from "./firebase-admin";
 import { verifyAdmin } from "./verifyAuth";
+import { ServerConfigError } from "./serverConfig";
 
 type Handler = (req: Request, decoded: DecodedIdToken) => Promise<Response>;
 
@@ -13,6 +14,10 @@ export function adminRoute(handler: Handler) {
     try {
       decoded = await verifyAdmin(req);
     } catch (e) {
+      if (e instanceof ServerConfigError) {
+        console.error("[config]", e.message);
+        return Response.json({ error: e.message }, { status: 500 });
+      }
       const msg = e instanceof Error ? e.message : "Unauthorized";
       return Response.json({ error: msg }, { status: msg === "Forbidden" ? 403 : 401 });
     }

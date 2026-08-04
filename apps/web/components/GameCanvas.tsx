@@ -12,6 +12,8 @@ import { Renderer3D } from "@/game-engine/render3d";
 import { GAME_CONFIG as C } from "@/game-engine/config";
 import { useAuth } from "@/components/AuthProvider";
 import TouchControls from "@/components/TouchControls";
+import RoomLeaderboard from "@/components/RoomLeaderboard";
+import { authedFetch } from "@/lib/apiClient";
 import { recordMatch, type MatchGains } from "@/lib/matches";
 import type { ControlMode, GameResult, StageConfig, Vec } from "@/game-engine/types";
 
@@ -127,11 +129,13 @@ export default function GameCanvas({
   stage,
   mode,
   bgUrl,
+  roomId,
   onRestart,
 }: {
   stage: StageConfig;
   mode: ControlMode;
   bgUrl?: string;
+  roomId?: string;
   onRestart: () => void;
 }) {
   const { t } = useTranslation("game");
@@ -243,10 +247,24 @@ export default function GameCanvas({
         renderer.draw(now);
         // 매치 결과 기록 (docs/03 §4) — 로그인 시에만
         const { user: u, userDoc: ud } = authRef.current;
+        const result = engine.result;
         if (u && ud) {
-          recordMatch(u.uid, ud, stage, mode, engine, engine.result)
+          recordMatch(u.uid, ud, stage, mode, engine, result)
             .then((gains) => setHud((prev) => ({ ...prev, gains })))
             .catch((e) => console.error("매치 기록 실패:", e));
+          // 커스텀 방이면 방 랭킹에도 제출 (최고 기록만 유지)
+          if (roomId && roomId !== "temp") {
+            authedFetch("/api/rooms/scores", {
+              method: "POST",
+              body: JSON.stringify({
+                roomId,
+                score: result.score,
+                areaPercent: result.areaPercent,
+                kills: result.kills,
+                cleared: result.outcome === "clear",
+              }),
+            }).catch((e) => console.error("방 기록 제출 실패:", e));
+          }
         }
       }
     };
@@ -302,7 +320,7 @@ export default function GameCanvas({
       engineRef.current = null;
       rendererRef.current = null;
     };
-  }, [stage, mode, bgUrl]);
+  }, [stage, mode, bgUrl, roomId]);
 
   const cond = stage.clearCondition;
   const goal =
@@ -469,6 +487,7 @@ export default function GameCanvas({
                 !user && <p className="pt-1 text-sm text-zinc-500">{t("loginToSave")}</p>
               )}
             </div>
+            {roomId && <RoomLeaderboard roomId={roomId} />}
             <div className="mt-6 flex justify-center gap-3 sm:mt-8 sm:gap-4">
               <button
                 onClick={onRestart}

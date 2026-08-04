@@ -16,10 +16,18 @@ service cloud.firestore {
                     && !("role" in request.resource.data.diff(resource.data).affectedKeys());
     }
 
-    // 커스텀 방: 만든 사람만 읽을 수 있고, 쓰기는 서버(Admin SDK) 경유만 허용
+    // 커스텀 방: 공개 방은 누구나(로그인 시), 비공개 방은 만든 사람만 읽는다.
+    // 쓰기는 모두 서버(Admin SDK) 경유 — 클라이언트가 방 설정이나 기록을 조작할 수 없다.
     match /rooms/{roomId} {
-      allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      allow read: if request.auth != null
+        && (resource.data.visibility == "public" || resource.data.ownerUid == request.auth.uid);
       allow write: if false;
+
+      // 방 랭킹
+      match /scores/{uid} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
     }
 
     // 매치 기록: 로그인 유저 생성/조회 가능 (MVP — 치트 방지는 서버 검증 도입 시 강화)

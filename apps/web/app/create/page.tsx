@@ -48,6 +48,7 @@ export default function CreateRoomPage() {
   const [controlMode, setControlMode] = useState<ControlMode>("classic");
   const [botTier, setBotTier] = useState<1 | 2 | 3>(1);
   const [botCount, setBotCount] = useState(2);
+  const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [clearType, setClearType] = useState<"areaPercent" | "surviveTime">("areaPercent");
   const [clearValue, setClearValue] = useState(30);
   const [timeLimitSec, setTimeLimitSec] = useState(180);
@@ -91,6 +92,7 @@ export default function CreateRoomPage() {
       clearType,
       clearValue,
       timeLimitSec,
+      visibility,
     };
     try {
       if (user) {
@@ -105,6 +107,8 @@ export default function CreateRoomPage() {
           ...payload,
           roomId: "temp",
           ownerUid: "",
+          ownerName: "",
+          visibility: "private",
           imageUrl: image.dataUrl,
         };
         sessionStorage.setItem(TEMP_ROOM_KEY, JSON.stringify(temp));
@@ -230,6 +234,21 @@ export default function CreateRoomPage() {
             />
             <span className="w-6 text-center font-mono">{botCount}</span>
           </div>
+        </section>
+
+        {/* 공개 여부 */}
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-zinc-300">{t("visibility")}</h2>
+          <div className="flex gap-2">
+            {(["private", "public"] as const).map((v) => (
+              <Chip key={v} active={visibility === v} onClick={() => setVisibility(v)}>
+                {t(`visibilityOption.${v}`)}
+              </Chip>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-500">
+            {user ? t(`visibilityHint.${visibility}`) : t("visibilityGuest")}
+          </p>
         </section>
 
         {/* 목표 */}
